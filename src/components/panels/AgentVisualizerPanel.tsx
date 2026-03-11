@@ -923,6 +923,9 @@ export function AgentVisualizerPanel() {
     return acc;
   }, {} as Record<string, number>);
 
+  // Loading state check
+  const isLoading = agents.length === 0;
+
   return (
     <div className="flex flex-col h-full bg-gray-950">
       {/* Control Bar */}
@@ -930,6 +933,9 @@ export function AgentVisualizerPanel() {
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span>🎮</span> Agent World
+            <span className="ml-2 px-2.5 py-0.5 bg-cyan-600/20 text-cyan-400 text-sm font-semibold rounded-full">
+              {agents.length} agents
+            </span>
           </h2>
           
           {/* View Mode Tabs */}
@@ -1019,6 +1025,17 @@ export function AgentVisualizerPanel() {
             className="absolute inset-0"
             style={{ background: 'linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 50%, #0a0a1a 100%)' }}
           />
+          
+          {/* Loading overlay */}
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80 z-10">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
+                <p className="text-gray-400 text-lg">Loading agents...</p>
+                <p className="text-gray-500 text-sm mt-1">Fetching data from the database</p>
+              </div>
+            </div>
+          )}
           
           {/* Instructions */}
           <div className="absolute bottom-4 left-4 text-xs text-gray-500 bg-black/30 px-3 py-2 rounded-lg">

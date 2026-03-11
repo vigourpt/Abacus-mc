@@ -47,7 +47,7 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="h-full overflow-auto p-6 space-y-6">
       {/* Quick Actions */}
       <QuickActions />
 
@@ -162,13 +162,18 @@ function StatCard({
 function PanelContent({ panel }: { panel: string }) {
   const { agents, tasks } = useAppStore();
 
-  // Map panel IDs to components
-  const panels: Record<string, React.ReactNode> = {
+  // Full-height panels (no padding, no scroll - they handle it internally)
+  const fullHeightPanels: Record<string, React.ReactNode> = {
+    visualizer: <AgentVisualizerPanel />,
+    'agent-world': <AgentVisualizerPanel />,
+    chat: <ChatPanel />,
+  };
+
+  // Standard panels (with padding and scroll)
+  const standardPanels: Record<string, React.ReactNode> = {
     // Main navigation
     agents: <AgentsPanel agents={agents} />,
-    visualizer: <AgentVisualizerPanel />,
     tasks: <TasksPanel tasks={tasks} />,
-    chat: <ChatPanel />,
     channels: <ChannelsPanel />,
     skills: <SkillsPanel />,
     memory: <MemoryPanel />,
@@ -196,10 +201,19 @@ function PanelContent({ panel }: { panel: string }) {
     
     // Legacy/alternate names
     messages: <ChatPanel />,
-    'agent-world': <AgentVisualizerPanel />,
   };
 
-  return <div className="h-full">{panels[panel] || <NotFoundPanel panel={panel} />}</div>;
+  // Check if it's a full-height panel
+  if (fullHeightPanels[panel]) {
+    return <div className="h-full">{fullHeightPanels[panel]}</div>;
+  }
+
+  // Standard panel with padding and scroll
+  if (standardPanels[panel]) {
+    return <div className="h-full overflow-auto p-6">{standardPanels[panel]}</div>;
+  }
+
+  return <div className="h-full overflow-auto p-6"><NotFoundPanel panel={panel} /></div>;
 }
 
 function AgentsPanel({ agents }: { agents: any[] }) {
