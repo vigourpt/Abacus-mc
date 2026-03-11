@@ -7,6 +7,28 @@ import { ActivityFeed } from './ActivityFeed';
 import { QuickActions } from './QuickActions';
 import { AnalyticsDashboard } from '@/components/analytics';
 
+// Import all panels
+import {
+  ChatPanel,
+  ChannelsPanel,
+  SkillsPanel,
+  MemoryPanel,
+  ActivityPanel,
+  LogsPanel,
+  CostTrackerPanel,
+  NodesPanel,
+  ApprovalsPanel,
+  OfficePanel,
+  CronPanel,
+  WebhooksPanel,
+  AlertsPanel,
+  GitHubPanel,
+  SecurityPanel,
+  GatewaysPanel,
+  SettingsPanel,
+  HiringPanel,
+} from '@/components/panels';
+
 export function Dashboard() {
   const { agents, tasks, activePanel } = useAppStore();
 
@@ -64,11 +86,11 @@ export function Dashboard() {
           <section>
             <h2 className="text-lg font-semibold text-white mb-4">Core Agents</h2>
             <div className="grid grid-cols-2 gap-4">
-              {[...agentsByDivision.executive, ...agentsByDivision.engineering].map(
-                (agent) => (
+              {[...agentsByDivision.executive, ...agentsByDivision.engineering]
+                .slice(0, 4)
+                .map((agent) => (
                   <AgentCard key={agent.id} agent={agent} />
-                )
-              )}
+                ))}
             </div>
           </section>
 
@@ -82,9 +104,11 @@ export function Dashboard() {
                 ...agentsByDivision.marketing,
                 ...agentsByDivision.sales,
                 ...agentsByDivision.operations,
-              ].map((agent) => (
-                <AgentCard key={agent.id} agent={agent} compact />
-              ))}
+              ]
+                .slice(0, 6)
+                .map((agent) => (
+                  <AgentCard key={agent.id} agent={agent} compact />
+                ))}
             </div>
           </section>
 
@@ -135,24 +159,62 @@ function StatCard({
 }
 
 function PanelContent({ panel }: { panel: string }) {
+  const { agents, tasks } = useAppStore();
+
+  // Map panel IDs to components
   const panels: Record<string, React.ReactNode> = {
-    agents: <AgentsPanel />,
-    tasks: <TasksPanel />,
-    messages: <MessagesPanel />,
-    hiring: <HiringPanel />,
+    // Main navigation
+    agents: <AgentsPanel agents={agents} />,
+    tasks: <TasksPanel tasks={tasks} />,
+    chat: <ChatPanel />,
+    channels: <ChannelsPanel />,
+    skills: <SkillsPanel />,
+    memory: <MemoryPanel />,
+    
+    // Observe section
+    activity: <ActivityPanel />,
+    logs: <LogsPanel />,
+    'cost-tracker': <CostTrackerPanel />,
+    nodes: <NodesPanel />,
+    approvals: <ApprovalsPanel />,
+    office: <OfficePanel />,
+    
+    // Automate section
+    cron: <CronPanel />,
+    webhooks: <WebhooksPanel />,
+    alerts: <AlertsPanel />,
+    github: <GitHubPanel />,
+    
+    // Admin section
+    security: <SecurityPanel />,
     analytics: <AnalyticsDashboard />,
     gateways: <GatewaysPanel />,
     settings: <SettingsPanel />,
+    hiring: <HiringPanel />,
+    
+    // Legacy/alternate names
+    messages: <ChatPanel />,
   };
 
-  return <div>{panels[panel] || <p>Panel not found</p>}</div>;
+  return <div className="h-full">{panels[panel] || <NotFoundPanel panel={panel} />}</div>;
 }
 
-function AgentsPanel() {
-  const { agents } = useAppStore();
+function AgentsPanel({ agents }: { agents: any[] }) {
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white">All Agents</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-white">All Agents ({agents.length})</h2>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Search agents..."
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-500"
+          />
+          <button className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded text-sm transition-colors">
+            + New Agent
+          </button>
+        </div>
+      </div>
       <div className="grid grid-cols-3 gap-4">
         {agents.map((agent) => (
           <AgentCard key={agent.id} agent={agent} />
@@ -162,8 +224,7 @@ function AgentsPanel() {
   );
 }
 
-function TasksPanel() {
-  const { tasks } = useAppStore();
+function TasksPanel({ tasks }: { tasks: any[] }) {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">Task Board</h2>
@@ -172,38 +233,12 @@ function TasksPanel() {
   );
 }
 
-function MessagesPanel() {
+function NotFoundPanel({ panel }: { panel: string }) {
   return (
-    <div className="text-gray-400">
-      <h2 className="text-xl font-semibold text-white mb-4">Agent Messages</h2>
-      <p>Inter-agent communication will appear here.</p>
-    </div>
-  );
-}
-
-function HiringPanel() {
-  return (
-    <div className="text-gray-400">
-      <h2 className="text-xl font-semibold text-white mb-4">Agent Hiring</h2>
-      <p>Pending hiring requests and new agent creation.</p>
-    </div>
-  );
-}
-
-function GatewaysPanel() {
-  return (
-    <div className="text-gray-400">
-      <h2 className="text-xl font-semibold text-white mb-4">Gateway Connections</h2>
-      <p>OpenClaw gateway management and connection status.</p>
-    </div>
-  );
-}
-
-function SettingsPanel() {
-  return (
-    <div className="text-gray-400">
-      <h2 className="text-xl font-semibold text-white mb-4">Settings</h2>
-      <p>System configuration and preferences.</p>
+    <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+      <span className="text-4xl mb-4">🔍</span>
+      <p className="text-lg">Panel &quot;{panel}&quot; not found</p>
+      <p className="text-sm mt-2">This panel is under construction</p>
     </div>
   );
 }
