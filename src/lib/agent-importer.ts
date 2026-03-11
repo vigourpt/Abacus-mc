@@ -34,6 +34,7 @@ const DIVISION_MAP: Record<string, AgentDivision> = {
   'project-management': 'project-management',
   'testing': 'testing',
   'support': 'support',
+  'operations': 'operations',
   'spatial-computing': 'spatial-computing',
   'specialized': 'specialized',
   'game-development': 'game-development',
@@ -100,6 +101,25 @@ const AGENT_EMOJI_MAP: Record<string, string> = {
   'automation': '⚡',
   'copywriter': '✏️',
   'performance': '🎯',
+  // Operations & Support
+  'operations': '⚙️',
+  'compliance': '📋',
+  'legal': '⚖️',
+  'finance': '💳',
+  'payable': '💸',
+  'receivable': '💰',
+  'infrastructure': '🏗️',
+  'orchestrat': '🎭',
+  'consolidat': '📊',
+  'report': '📑',
+  'responder': '📞',
+  'workflow': '🔄',
+  'jira': '📌',
+  'producer': '🎬',
+  'shepherd': '👨‍💼',
+  'tracker': '📍',
+  'executive': '👔',
+  'summary': '📋',
 };
 
 // Color mappings for divisions
