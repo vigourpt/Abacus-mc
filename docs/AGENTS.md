@@ -1,231 +1,349 @@
-# Agent Documentation
+# Agent Directory
 
-This document describes each agent in The Autonomous AI Startup Architecture, their capabilities, and when to use them.
+This document provides a comprehensive directory of all 112+ agents in The Autonomous AI Startup Architecture, organized by division.
 
-## Agent Overview
+## Overview
 
-| Agent | Division | Role | Status |
-|-------|----------|------|--------|
-| 👑 CEO Agent | Executive | Strategic decision-making | Active |
-| 👨‍💻 Developer Agent | Engineering | Software development | Active |
-| 📣 Marketing Agent | Marketing | Marketing and growth | Active |
-| 💰 Sales Agent | Sales | Customer acquisition | Active |
-| ⚙️ Operations Agent | Operations | Process management | Active |
-| 🎯 Task Planner | System | Task routing | Active |
-
----
-
-## 👑 CEO Agent
-
-**Division:** Executive  
-**Primary Role:** Strategic decision-making and company direction
-
-### Capabilities
-- Define and communicate company vision
-- Make high-level strategic decisions
-- Prioritize initiatives
-- Delegate to department heads
-- Resolve conflicts and blockers
-
-### When to Use
-- Strategic planning and roadmap decisions
-- Resource allocation across departments
-- High-level conflict resolution
-- Company-wide direction changes
-- Stakeholder communications
-
-### Task Examples
-```
-✓ "Define Q2 priorities"
-✓ "Decide between feature A and B"
-✓ "Allocate budget across departments"
-✗ "Write code for the login page" (use Developer)
-✗ "Create social media posts" (use Marketing)
-```
+| Division | Count | Description |
+|----------|-------|-------------|
+| 🎮 Game Development | 19 | Game engines, multiplayer, shaders, narrative |
+| 💻 Engineering | 18 | Full-stack, AI, DevOps, security, mobile |
+| 📣 Marketing | 18 | SEO, social media, content, growth hacking |
+| 🧪 Testing | 8 | QA, API testing, performance, accessibility |
+| 🎨 Design | 8 | UX/UI, brand, visual storytelling |
+| 💰 Paid Media | 7 | PPC, programmatic, social ads, tracking |
+| ⚙️ Operations | 7 | Finance, compliance, orchestration, reporting |
+| 📋 Project Management | 6 | Jira, tracking, production, studio ops |
+| 💬 Support | 6 | Analytics, finance, legal, infrastructure |
+| 🌐 Spatial Computing | 6 | VisionOS, XR, Metal, immersive experiences |
+| 📦 Product | 4 | Feedback, prioritization, research |
+| ♟️ Strategy | 3 | NEXUS framework and strategic planning |
+| 👔 Executive | 1 | CEO and strategic leadership |
+| 💼 Sales | 1 | Revenue and customer acquisition |
 
 ---
 
-## 👨‍💻 Developer Agent
+## 🎮 Game Development (19 agents)
 
-**Division:** Engineering  
-**Primary Role:** Full-stack software development
+Game development specialists covering major engines and platforms.
 
-### Capabilities
-- Frontend: React, Next.js, TypeScript, Tailwind
-- Backend: Node.js, Python, REST APIs, GraphQL
-- Database: SQL, PostgreSQL, SQLite, Redis
-- DevOps: Docker, CI/CD, cloud platforms
-- Code review and documentation
+| Agent | Specialization |
+|-------|----------------|
+| 🎮 Game Audio Engineer Agent | Game Audio Engineer |
+| 🎨 Game Designer Agent | Game Designer |
+| 🎮 Godot Gameplay Scripter Agent | Godot Gameplay Scripter |
+| 🎲 Godot Multiplayer Engineer Agent | Godot Multiplayer Engineer |
+| 🎲 Godot Shader Developer Agent | Godot Shader Developer |
+| 🎨 Level Designer Agent | Level Designer |
+| 🎨 Narrative Designer Agent | Narrative Designer |
+| 📲 Roblox Avatar Creator Agent | Roblox Avatar Creator |
+| 🎨 Roblox Experience Designer Agent | Roblox Experience Designer |
+| 🧱 Roblox Systems Scripter Agent | Roblox Systems Scripter |
+| 📲 Technical Artist Agent | Technical Artist |
+| 🏗️ Unity Architect Agent | Unity Architect |
+| 🎯 Unity Editor Tool Developer Agent | Unity Editor Tool Developer |
+| 🎯 Unity Multiplayer Engineer Agent | Unity Multiplayer Engineer |
+| 📲 Unity Shader Graph Artist Agent | Unity Shader Graph Artist |
+| 🏗️ Unreal Multiplayer Architect Agent | Unreal Multiplayer Architect |
+| 🎬 Unreal Systems Engineer Agent | Unreal Systems Engineer |
+| 📲 Unreal Technical Artist Agent | Unreal Technical Artist |
+| 🎬 Unreal World Builder Agent | Unreal World Builder |
 
-### When to Use
-- Building new features
-- Bug fixes and debugging
-- Architecture decisions
-- Technical documentation
-- Code reviews
-
-### Task Examples
-```
-✓ "Build the user authentication system"
-✓ "Fix the API performance issue"
-✓ "Design the database schema"
-✗ "Write marketing copy" (use Marketing)
-✗ "Handle customer complaint" (use Sales/Operations)
-```
-
----
-
-## 📣 Marketing Agent
-
-**Division:** Marketing  
-**Primary Role:** Brand building and user acquisition
-
-### Capabilities
-- Brand strategy and identity
-- Content creation and SEO
-- Social media management
-- Campaign planning and execution
-- Growth hacking
-
-### When to Use
-- Content creation
-- Marketing campaigns
-- Brand guidelines
-- SEO optimization
-- User acquisition strategies
-
-### Task Examples
-```
-✓ "Create blog post about AI trends"
-✓ "Plan social media campaign"
-✓ "Optimize landing page copy"
-✗ "Close the enterprise deal" (use Sales)
-✗ "Deploy the new server" (use Developer)
-```
+**Capabilities:** Unity, Unreal Engine, Godot, Roblox Studio, GDScript, C#, Lua, Blueprints, multiplayer networking, shaders, audio engineering, level design, narrative design.
 
 ---
 
-## 💰 Sales Agent
+## 💻 Engineering (18 agents)
 
-**Division:** Sales  
-**Primary Role:** Revenue generation and customer acquisition
+Core software engineering and technical infrastructure.
 
-### Capabilities
-- Lead qualification (BANT)
-- Sales proposals and presentations
-- Objection handling
-- Pipeline management
-- Customer relationship building
+| Agent | Specialization |
+|-------|----------------|
+| 🤖 AI Engineer Agent | AI/ML Engineering |
+| 🏛️ Backend Architect Agent | Backend Architecture |
+| 📊 Data Engineer Agent | Data Engineering |
+| 🚀 DevOps Automator Agent | DevOps & CI/CD |
+| 👨‍💻 Developer Agent | Full-Stack Development |
+| 👨‍💻 Senior Developer Agent | Senior Development |
+| 🔧 Embedded Firmware Engineer | Firmware Development |
+| 🎨 Frontend Developer Agent | Frontend Development |
+| 🚨 Incident Response Commander | Incident Response |
+| 📱 Mobile App Builder Agent | Mobile Development |
+| ⚡ Rapid Prototyper Agent | Prototyping & MVPs |
+| 🔐 Security Engineer Agent | Security Engineering |
+| ⛓️ Solidity Smart Contract Engineer | Smart Contracts |
+| 🎯 Task Planner Agent | Task Orchestration |
+| 📝 Technical Writer Agent | Technical Documentation |
+| 🛡️ Threat Detection Engineer Agent | Threat Detection |
+| 💬 WeChat Mini Program Developer Agent | WeChat Development |
+| 🏗️ Autonomous Optimization Architect | System Optimization |
 
-### When to Use
-- Lead qualification
-- Sales calls and demos
-- Proposal creation
-- Contract negotiations
-- Customer follow-ups
-
-### Task Examples
-```
-✓ "Qualify the new enterprise lead"
-✓ "Create proposal for Acme Corp"
-✓ "Handle pricing objection"
-✗ "Write technical documentation" (use Developer)
-✗ "Create ad campaign" (use Marketing)
-```
-
----
-
-## ⚙️ Operations Agent
-
-**Division:** Operations  
-**Primary Role:** Operational efficiency and process management
-
-### Capabilities
-- Process design and optimization
-- Resource allocation
-- Budget management
-- Compliance and documentation
-- Cross-functional coordination
-
-### When to Use
-- Process improvement
-- Resource planning
-- Budget tracking
-- Operational reporting
-- Compliance requirements
-
-### Task Examples
-```
-✓ "Optimize the onboarding process"
-✓ "Create Q3 budget report"
-✓ "Document the deployment workflow"
-✗ "Build the API endpoint" (use Developer)
-✗ "Create marketing content" (use Marketing)
-```
+**Capabilities:** React, Next.js, TypeScript, Python, Node.js, Go, Rust, AWS, Docker, Kubernetes, PostgreSQL, MongoDB, CI/CD, security, mobile, blockchain.
 
 ---
 
-## 🎯 Task Planner Agent
+## 📣 Marketing (18 agents)
 
-**Division:** System  
-**Primary Role:** Central orchestration and task routing
+Digital marketing, content, and growth specialists.
 
-### Capabilities
-- Task classification
-- Agent matching
-- Workload balancing
-- Project decomposition
-- Escalation handling
+| Agent | Specialization |
+|-------|----------------|
+| 📲 App Store Optimizer Agent | ASO |
+| 📣 Marketing Agent | Marketing Leadership |
+| 🤖 Baidu SEO Specialist | China SEO |
+| 📲 Bilibili Content Strategist | Bilibili Content |
+| 📲 Carousel Growth Engine | Carousel Content |
+| 📲 China E-Commerce Operator | China E-Commerce |
+| 📲 Content Creator Agent | Content Creation |
+| 📲 Growth Hacker Agent | Growth Hacking |
+| 📲 Instagram Curator | Instagram Marketing |
+| 🤖 Kuaishou Strategist | Kuaishou Strategy |
+| 📲 Reddit Community Builder | Reddit Community |
+| 📲 SEO Specialist | SEO |
+| 📲 TikTok Strategist | TikTok Marketing |
+| 📲 Twitter Engager | Twitter Marketing |
+| 💬 WeChat Official Account Manager | WeChat Marketing |
+| 📲 Xiaohongshu Specialist | Xiaohongshu Marketing |
+| 📲 Zhihu Strategist | Zhihu Strategy |
+| 📲 Social Media Strategist Agent | Social Media Strategy |
 
-### When to Use
-- This agent is used automatically by the system
-- Routes all incoming tasks to appropriate agents
-- Handles complex multi-step projects
-
-### How It Works
-
-1. **Receives Task** - New task enters the system
-2. **Analyzes Content** - Classifies by type (dev, marketing, etc.)
-3. **Scores Agents** - Matches capabilities to requirements
-4. **Assigns Task** - Routes to best available agent
-5. **Monitors Progress** - Tracks completion and escalates if needed
+**Capabilities:** SEO, SEM, content marketing, social media, growth hacking, analytics, China market expertise, influencer marketing.
 
 ---
 
-## Agent Interaction Patterns
+## 🧪 Testing (8 agents)
 
-### Delegation Pattern
-```
-CEO → "Build landing page with marketing focus"
-    │
-    ├── Developer: Build the page
-    └── Marketing: Create the copy
-```
+Quality assurance and testing specialists.
 
-### Collaboration Pattern
-```
-Marketing ←─── Review Request ───→ Developer
-    │                                  │
-    └── Create copy ───→ Implement ────┘
-```
+| Agent | Specialization |
+|-------|----------------|
+| 🧪 API Tester Agent | API Testing |
+| 🤖 Accessibility Auditor Agent | Accessibility Testing |
+| 🤖 Integration Agent | Integration Testing |
+| 📲 Performance Benchmarker Agent | Performance Testing |
+| ✅ QA Agent | Quality Assurance |
+| 🤖 Test Results Analyzer Agent | Test Analysis |
+| 🤖 Tool Evaluator Agent | Tool Evaluation |
+| 🔄 Workflow Optimizer Agent | Workflow Optimization |
 
-### Escalation Pattern
-```
-Developer: "Blocked on design decision"
-    │
-    ▼
- Task Planner: Escalate to CEO
-    │
-    ▼
-CEO: Make decision → Unblock Developer
-```
+**Capabilities:** Unit testing, integration testing, E2E testing, API testing, performance testing, accessibility auditing, test automation.
+
+---
+
+## 🎨 Design (8 agents)
+
+User experience, interface design, and brand specialists.
+
+| Agent | Specialization |
+|-------|----------------|
+| 🏗️ ArchitectUX Agent | UX Architecture |
+| 📲 Brand Guardian Agent | Brand Management |
+| 🤖 Image Prompt Engineer Agent | AI Image Prompts |
+| 🎨 UI Designer Agent | UI Design |
+| 👤 UX Researcher Agent | UX Research |
+| 🤖 Visual Storyteller Agent | Visual Storytelling |
+| 🤖 Whimsy Injector Agent | Creative Delight |
+| 📸 Inclusive Visuals Specialist | Inclusive Design |
+
+**Capabilities:** Figma, Sketch, design systems, user research, prototyping, brand identity, accessibility design, visual communication.
+
+---
+
+## 💰 Paid Media (7 agents)
+
+Paid advertising and media buying specialists.
+
+| Agent | Specialization |
+|-------|----------------|
+| 🤖 Ad Creative Strategist Agent | Creative Strategy |
+| 🤖 Paid Media Auditor Agent | Account Auditing |
+| 🤖 PPC Campaign Strategist Agent | PPC Management |
+| 🤖 Paid Social Strategist Agent | Paid Social |
+| 🤖 Programmatic & Display Buyer Agent | Programmatic Buying |
+| 🤖 Search Query Analyst Agent | Search Analysis |
+| 🤖 Tracking & Measurement Specialist Agent | Tracking & Attribution |
+
+**Capabilities:** Google Ads, Meta Ads, programmatic advertising, tracking pixels, attribution modeling, ROAS optimization.
+
+---
+
+## ⚙️ Operations (7 agents)
+
+Business operations, compliance, and process management.
+
+| Agent | Specialization |
+|-------|----------------|
+| 🤝 Accounts Payable Agent | Accounts Payable |
+| 🎭 Agents Orchestrator Agent | Agent Orchestration |
+| 📋 Compliance Auditor Agent | Compliance |
+| 📊 Data Analytics Reporter Agent | Analytics Reporting |
+| 📊 Data Consolidation Agent | Data Consolidation |
+| ⚙️ Operations Agent | Operations Management |
+| 📑 Report Distribution Agent | Report Distribution |
+
+**Capabilities:** Financial operations, compliance, process automation, data integration, analytics, reporting.
+
+---
+
+## 📋 Project Management (6 agents)
+
+Project tracking, production, and workflow management.
+
+| Agent | Specialization |
+|-------|----------------|
+| 📋 Experiment Tracker Agent | Experiment Tracking |
+| 📋 Jira Workflow Steward Agent | Jira Management |
+| 👨‍💻 Project Manager Agent | Project Management |
+| 📋 Project Shepherd Agent | Project Guidance |
+| 📋 Studio Operations Agent | Studio Ops |
+| 📋 Studio Producer Agent | Production |
+
+**Capabilities:** Agile/Scrum, Jira, project planning, resource allocation, timeline management, production workflows.
+
+---
+
+## 💬 Support (6 agents)
+
+Business support functions.
+
+| Agent | Specialization |
+|-------|----------------|
+| 💬 Analytics Reporter Agent | Analytics |
+| 💬 Executive Summary Generator Agent | Executive Summaries |
+| 💬 Finance Tracker Agent | Finance Tracking |
+| 🤖 Infrastructure Maintainer Agent | Infrastructure |
+| 💬 Legal Compliance Checker Agent | Legal Compliance |
+| 💬 Support Responder Agent | Support |
+
+**Capabilities:** Business analytics, financial reporting, legal compliance, infrastructure maintenance, customer support.
+
+---
+
+## 🌐 Spatial Computing (6 agents)
+
+XR, VR, AR, and spatial computing specialists.
+
+| Agent | Specialization |
+|-------|----------------|
+| 🤖 Terminal Integration Specialist | Terminal Integration |
+| 🤖 XR Cockpit Interaction Specialist Agent | Cockpit UX |
+| 🤖 XR Immersive Developer Agent | Immersive Development |
+| 🏗️ XR Interface Architect Agent | XR Architecture |
+| 🌐 macOS Spatial/Metal Engineer Agent | Metal/Spatial |
+| 🌐 visionOS Spatial Engineer | visionOS |
+
+**Capabilities:** visionOS, ARKit, RealityKit, Metal, Unity XR, immersive UI, spatial audio, hand tracking.
+
+---
+
+## 📦 Product (4 agents)
+
+Product management and research.
+
+| Agent | Specialization |
+|-------|----------------|
+| 📦 Feedback Synthesizer Agent | User Feedback |
+| 📦 Sprint Prioritizer Agent | Sprint Planning |
+| 📦 Trend Researcher Agent | Trend Research |
+| 🧠 Behavioral Nudge Engine | Behavioral Design |
+
+**Capabilities:** Product strategy, user research, roadmapping, sprint planning, A/B testing, behavioral economics.
+
+---
+
+## ♟️ Strategy (3 agents)
+
+Strategic planning and coordination framework.
+
+| Agent | Specialization |
+|-------|----------------|
+| ⚡ NEXUS Quick-Start Guide | Quick Start |
+| 🌐 NEXUS — Network of EXperts | Strategic Coordination |
+| 📑 NEXUS Executive Brief | Executive Strategy |
+
+**Capabilities:** Strategic planning, cross-functional coordination, executive communication, framework implementation.
+
+---
+
+## 👔 Executive (1 agent)
+
+Strategic leadership.
+
+| Agent | Specialization |
+|-------|----------------|
+| 👑 CEO Agent | Strategic Leadership |
+
+**Capabilities:** Strategic decision-making, team orchestration, stakeholder management, company vision.
+
+---
+
+## 💼 Sales (1 agent)
+
+Revenue and customer acquisition.
+
+| Agent | Specialization |
+|-------|----------------|
+| 💰 Sales Agent | Revenue Operations |
+
+**Capabilities:** Lead qualification, customer acquisition, sales strategy, relationship building, revenue optimization.
+
+---
 
 ## Adding New Agents
 
-To add a new agent:
+### Via Import (Recommended)
+
+```bash
+# Import all agents from a division
+npx tsx scripts/import-agents.ts --division engineering
+
+# Import specialized agents
+npx tsx scripts/import-specialized-agents.ts
+```
+
+### Via Manual Creation
 
 1. Create directory: `workspace/agents/<agent-slug>/`
-2. Create `soul.md` with YAML frontmatter
-3. Run sync: `POST /api/agents/sync`
+2. Create `soul.md` with frontmatter and content
+3. Run sync: `pnpm exec tsx scripts/sync-agents.ts`
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed instructions.
+### Soul.md Template
+
+```yaml
+---
+name: "Agent Name"
+description: "Brief description"
+emoji: "🤖"
+color: "#3b82f6"
+division: "engineering"
+specialization: "Specialty Area"
+source: "local"
+vibe: "professional, skilled, collaborative"
+---
+
+# Agent Name
+
+## Your Identity
+You are [Agent Name], an AI agent specializing in...
+
+## Core Mission
+...
+
+## Critical Rules
+1. ...
+2. ...
+
+## Communication Style
+...
+```
+
+---
+
+## Agent Sources
+
+| Source | Description | Count |
+|--------|-------------|-------|
+| `agency-agents` | Imported from [agency-agents](https://github.com/msitarzewski/agency-agents) repo | 106 |
+| `local` | Manually created core agents | 6 |
+| `openclaw` | Synced from OpenClaw configuration | - |
+| `custom` | User-created custom agents | - |

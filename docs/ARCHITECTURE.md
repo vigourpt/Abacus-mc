@@ -5,110 +5,234 @@ This document describes the system architecture of The Autonomous AI Startup, in
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                 AUTONOMOUS AI STARTUP                   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ┌─────────────────┐   ┌─────────────────┐               │
-│  │  Next.js 16    │   │   SQLite DB    │               │
-│  │  App Router    │───│  (WAL mode)    │               │
-│  └─────────────────┘   └─────────────────┘               │
-│         │                    │                          │
-│         │                    │                          │
-│  ┌──────┴────────────────┴──────────────────┐         │
-│  │          CORE LIBRARIES             │         │
-│  ├───────────────────────────────────────┘         │
-│  │                                               │
-│  ├── task-planner.ts    (Task routing)          │
-│  ├── agent-hiring.ts    (Dynamic agents)        │
-│  ├── agent-sync.ts      (OpenClaw sync)         │
-│  ├── websocket.ts       (Gateway connection)    │
-│  └── device-identity.ts (Ed25519 identity)      │
-│                                                         │
-│  ┌─────────────────────────────────────────────┐     │
-│  │              AGENT LAYER                   │     │
-│  ├─────────────────────────────────────────────┤     │
-│  │ 👑 CEO    👨‍💻 Dev   📣 Mkt   💰 Sales  ⚙️ Ops │     │
-│  └─────────────────────────────────────────────┘     │
-│                         │                              │
-│                         ▼                              │
-│  ┌─────────────────────────────────────────────┐     │
-│  │         OpenClaw Gateway                   │     │
-│  │     ws://127.0.0.1:18789 (v3)              │     │
-│  └─────────────────────────────────────────────┘     │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      AUTONOMOUS AI STARTUP                              │
+│                     Phase 2 Complete - 112+ Agents                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐       │
+│  │  Next.js 16     │   │   SQLite DB     │   │  Agency-Agents  │       │
+│  │  App Router     │───│  (WAL mode)     │───│  Repository     │       │
+│  └─────────────────┘   └─────────────────┘   └─────────────────┘       │
+│         │                    │                        │                 │
+│         │                    │                        │                 │
+│  ┌──────┴────────────────────┴────────────────────────┴─────────┐     │
+│  │                    CORE LIBRARIES                              │     │
+│  ├────────────────────────────────────────────────────────────────┤     │
+│  │ ├── task-planner.ts     (Enhanced task routing & collab)     │     │
+│  │ ├── agent-hiring.ts     (Dynamic agent creation)             │     │
+│  │ ├── agent-importer.ts   (Import from agency-agents)          │     │
+│  │ ├── agent-sync.ts       (Workspace synchronization)          │     │
+│  │ ├── websocket.ts        (Gateway connection)                 │     │
+│  │ └── device-identity.ts  (Ed25519 identity)                   │     │
+│  └────────────────────────────────────────────────────────────────┘     │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    AGENT LAYER (112+ Agents)                    │   │
+│  ├─────────────────────────────────────────────────────────────────┤   │
+│  │  🎮 Game Dev (19) │ 💻 Engineering (18) │ 📣 Marketing (18)    │   │
+│  │  🧪 Testing (8)   │ 🎨 Design (8)       │ 💰 Paid Media (7)    │   │
+│  │  ⚙️ Operations (7)│ 📋 Project Mgmt (6) │ 💬 Support (6)       │   │
+│  │  🌐 Spatial (6)   │ 📦 Product (4)      │ ♟️ Strategy (3)      │   │
+│  │  👔 Executive (1) │ 💼 Sales (1)        │                      │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              │                                          │
+│                              ▼                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    OpenClaw Gateway                              │   │
+│  │                ws://127.0.0.1:18789 (v3)                        │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Components
 
-### 1. Task Planner (Central Orchestrator)
+### 1. Task Planner (Enhanced Orchestrator)
 
 **Location:** `src/lib/task-planner.ts`
 
-The Task Planner is the brain of the system, responsible for:
+The Task Planner is the brain of the system, now enhanced with Phase 2 features:
 
-- **Task Classification:** Analyzes incoming tasks to determine type (strategic, development, marketing, sales, operations)
-- **Agent Matching:** Scores all available agents based on capabilities and availability
-- **Task Assignment:** Routes tasks to the best-matched agent
-- **Task Decomposition:** Breaks complex tasks into manageable subtasks
+#### Core Responsibilities
+- **Task Classification:** Analyzes tasks to determine type and complexity
+- **Agent Matching:** Scores agents based on division, specialization, and workload
+- **Multi-Agent Collaboration:** Coordinates tasks that require multiple agents
+- **Task Dependencies:** Manages complex workflows with task dependencies
+- **Workload Balancing:** Redistributes tasks to prevent agent overload
 
-```typescript
-// Task routing flow
-User Request → Task Planner → Classify Task → Score Agents → Assign to Best Match
+#### Task Routing Flow
+```
+User Request 
+    │
+    ▼
+Task Planner
+    │
+    ├── Classify Task (type, complexity)
+    │
+    ├── Check Collaboration Need
+    │       │
+    │       └── If multi-agent → Create Collaboration
+    │
+    ├── Score Available Agents
+    │       │
+    │       ├── Division match
+    │       ├── Specialization bonus
+    │       ├── Workload factor
+    │       └── Complexity assessment
+    │
+    ├── Best match found? 
+    │       │
+    │       ├── Yes → Assign to Agent
+    │       └── No → Trigger Autonomous Hiring
+    │
+    └── Create Task Dependencies (if complex)
 ```
 
-### 2. Agent Hiring Framework
+#### Complexity Assessment
+```typescript
+// Complexity factors
+- Multi-step keywords: 'comprehensive', 'full-stack', 'end-to-end'
+- Integration keywords: 'integrate', 'connect', 'sync'
+- Advanced keywords: 'optimize', 'architect', 'design system'
+- Scale keywords: 'enterprise', 'production', 'at scale'
+```
+
+### 2. Agent Import System (Phase 2)
+
+**Location:** `src/lib/agent-importer.ts`
+
+Imports specialized agents from the agency-agents repository:
+
+#### Import Flow
+```
+agency-agents Repository
+         │
+         ▼
+    AgentImporter
+         │
+    ├── fetchDivisionAgents() → List available .md files
+    ├── fetchAgentMarkdown()  → Download agent content
+    ├── parseAgentMarkdown()  → Extract metadata & capabilities
+    ├── saveAgentToWorkspace() → Create soul.md file
+    └── importAgentToDb()     → Insert/update database record
+```
+
+#### Division Mapping
+| Source Folder | System Division |
+|---------------|-----------------|
+| engineering | engineering |
+| design | design |
+| marketing | marketing |
+| paid-media | paid-media |
+| product | product |
+| project-management | project-management |
+| testing | testing |
+| support | support |
+| spatial-computing | spatial-computing |
+| game-development | game-development |
+| strategy | strategy |
+
+### 3. Agent Hiring Framework (Enhanced)
 
 **Location:** `src/lib/agent-hiring.ts`
 
-Handles dynamic agent creation:
+Dynamic agent creation with Phase 2 enhancements:
 
-- **Capability Detection:** Analyzes tasks to identify required capabilities
-- **Gap Analysis:** Compares requirements against existing agents
-- **Role Suggestion:** Recommends new agent roles from templates
-- **Agent Instantiation:** Creates new agents when approved
+#### Features
+- **Capability Detection:** Enhanced scoring for task requirements
+- **Division Detection:** Automatically determines best division
+- **Template Matching:** Uses expanded AGENT_TEMPLATES
+- **Autonomous Hiring:** Can auto-create high-priority agents
+- **Integration:** Works with AgentImporter for workspace setup
 
-### 3. Agent SOUL System
+#### Hiring Flow
+```
+Task Analysis
+     │
+     ├── detectCapabilities() → Required skills
+     ├── detectDivision()     → Best-fit division
+     ├── findMatchingAgents() → Existing matches
+     │
+     └── evaluateHiringNeed()
+              │
+              ├── High confidence → Auto-create agent
+              ├── Medium → Create hiring request
+              └── Low → Manual review required
+```
+
+### 4. Agent SOUL System
 
 **Location:** `workspace/agents/*/soul.md`
 
-Each agent has a SOUL (System Of Unique Learning) file that defines:
+Each agent has a SOUL (System Of Unique Learning) file:
 
-- Identity and personality
-- Core mission and objectives
-- Critical rules and boundaries
-- Templates and deliverables
-- Success metrics
+```yaml
+---
+name: "Agent Name"
+description: "Agent description"
+emoji: "🤖"
+color: "#3b82f6"
+division: "engineering"
+specialization: "Backend Architecture"
+source: "agency-agents"
+source_url: "https://..."
+vibe: "professional, skilled, collaborative"
+---
 
-### 4. Database Layer
+# Agent Name
+
+## Your Identity
+...
+
+## Core Capabilities
+...
+
+## Critical Rules
+...
+```
+
+### 5. Database Layer (Extended Schema)
 
 **Location:** `src/lib/db.ts`
 
-SQLite database with WAL mode for concurrent access:
+SQLite database with Phase 2 schema extensions:
 
-| Table | Purpose |
-|-------|----------|
-| `agents` | Agent profiles and configuration |
-| `tasks` | Task queue and history |
-| `agent_messages` | Inter-agent communication |
-| `hiring_requests` | Dynamic agent creation requests |
-| `gateway_connections` | OpenClaw gateway configs |
-| `activity_log` | System activity tracking |
-| `token_usage` | AI model token consumption |
+| Table | Purpose | Phase 2 Additions |
+|-------|---------|-------------------|
+| `agents` | Agent profiles | `specialization`, `source`, `technical_skills`, `personality_traits` |
+| `tasks` | Task queue | `dependencies`, `estimated_hours`, `tags` |
+| `task_dependencies` | Task workflow | **New table** |
+| `agent_collaborations` | Multi-agent work | **New table** |
+| `import_history` | Import tracking | **New table** |
+| `hiring_requests` | Creation requests | `suggested_division`, `priority`, `justification` |
 
-### 5. State Management
+### 6. State Management
 
 **Location:** `src/store/index.ts`
 
-Zustand store for client-side state:
+Zustand store with expanded state:
 
-- Agents and tasks cache
-- UI state (panels, selections)
-- Real-time events queue
-- Gateway connection status
+```typescript
+interface AppState {
+  agents: Agent[];           // 112+ agents
+  tasks: Task[];
+  events: AppEvent[];
+  gatewayConnection: GatewayConnection | null;
+  
+  // UI state
+  activePanel: string;
+  sidebarOpen: boolean;
+  isLoading: boolean;
+  
+  // Selectors
+  selectAgentById: (id: string) => Agent | undefined;
+  selectAgentsByDivision: (division: AgentDivision) => Agent[];
+  // ...
+}
+```
 
-### 6. OpenClaw Integration
+### 7. OpenClaw Integration
 
 **Location:** `src/lib/websocket.ts`, `src/lib/device-identity.ts`
 
@@ -118,47 +242,83 @@ Zustand store for client-side state:
 
 ## Data Flow
 
-### Task Lifecycle
+### Multi-Agent Collaboration Flow
 
 ```
-1. Task Created
-   │
-   ▼
-2. Task Planner Analyzes
-   │
-   ├── Can existing agent handle? → Yes → Assign to Agent
-   │                               │
-   └── No → Create Hiring Request   │
-                                    │
-   ┌───────────────────────────────┘
-   │
-3. Agent Receives Task (via /api/tasks/queue)
-   │
-   ▼
-4. Agent Executes Task
-   │
-   ▼
-5. Task Moves to Review
-   │
-   ▼
-6. Quality Gate Check
-   │
-   ├── Pass → Complete
-   └── Fail → Back to Agent
+Complex Task Created
+        │
+        ▼
+Task Planner Analyzes
+        │
+        ├── Requires multiple agents? 
+        │         │
+        │         └── Yes → createCollaboration()
+        │                       │
+        │                       ├── Identify required divisions
+        │                       ├── Select lead agent
+        │                       ├── Select supporting agents
+        │                       └── Create collaboration record
+        │
+        └── Decompose into subtasks
+                    │
+                    ├── Create task dependencies
+                    ├── Assign subtasks to agents
+                    └── Set up dependency tracking
 ```
 
-### Agent Communication
+### Task Dependency Management
 
 ```
-Agent A                    API                    Agent B
-   │                        │                        │
-   ├── POST /api/agents/comms ────────────────────→│
-   │    (delegation request)  │                        │
-   │                        │── Store message ────────→│
-   │                        │                        │
-   │                        │── GET /api/agents/comms ─┤
-   │                        │                        │
-   │─────────────────────────── Response ──────────────┤
+┌─────────────────────────────────────────────────────────┐
+│                   Task Dependency Flow                   │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Task A (Research) ──finish_to_start──→ Task B (Design)│
+│                                              │          │
+│                                      finish_to_start    │
+│                                              │          │
+│                                              ▼          │
+│                                     Task C (Implement) │
+│                                              │          │
+│                                      finish_to_start    │
+│                                              │          │
+│                                              ▼          │
+│                                      Task D (Test)     │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+
+Dependency Types:
+- finish_to_start: B starts after A finishes (most common)
+- start_to_start: B starts when A starts
+- finish_to_finish: B finishes when A finishes
+- start_to_finish: B finishes when A starts
+```
+
+### Agent Import Flow
+
+```
+Import Trigger (script or API)
+        │
+        ▼
+AgentImporter.importDivision()
+        │
+        ├── Fetch agent list from GitHub
+        │
+        ├── For each agent .md file:
+        │       │
+        │       ├── Download content
+        │       ├── Parse markdown to ParsedAgent
+        │       │       ├── Extract name, description
+        │       │       ├── Detect emoji, color
+        │       │       ├── Extract capabilities
+        │       │       ├── Extract technical skills
+        │       │       └── Extract personality traits
+        │       │
+        │       ├── Create workspace directory
+        │       ├── Generate soul.md file
+        │       └── Insert/update database
+        │
+        └── Record import history
 ```
 
 ## Design Decisions
@@ -170,19 +330,27 @@ Agent A                    API                    Agent B
 3. **Portability** - Single file, easy backup
 4. **Performance** - Excellent for read-heavy workloads
 
-### Why Zustand?
+### Why 14 Divisions?
 
-1. **Minimal boilerplate** - Simple API
-2. **TypeScript first** - Full type inference
-3. **Middleware support** - Subscriptions, persistence
-4. **React 19 compatible** - Works with concurrent features
+Divisions align with agency-agents repository structure and common organizational needs:
+- Engineering, Design, Marketing (core functions)
+- Game Development, Spatial Computing (specialized tech)
+- Testing, Support, Operations (quality & support)
+- Strategy, Executive, Sales (leadership & revenue)
 
-### Why Ed25519?
+### Why Multi-Agent Collaboration?
 
-1. **Industry standard** - Used by SSH, TLS, etc.
-2. **Fast** - Excellent performance
-3. **Secure** - 128-bit security level
-4. **Small keys** - 32-byte public key
+Complex tasks often require diverse expertise:
+- A marketing campaign needs content, design, and paid media
+- A product launch needs engineering, QA, and marketing
+- System design needs architecture, security, and DevOps
+
+### Why Task Dependencies?
+
+Real workflows have ordering requirements:
+- Can't test before implementing
+- Can't implement before designing
+- Can't deploy before testing
 
 ## Security Considerations
 
@@ -191,3 +359,12 @@ Agent A                    API                    Agent B
 - Session-based auth with scrypt hashing
 - CSRF protection enabled
 - Input validation with Zod
+- Agent source URL tracking for audit
+
+## Performance Considerations
+
+- SQLite WAL mode for concurrent reads
+- Workload balancing prevents agent overload
+- Lazy loading of agent data
+- Efficient task priority queue
+- Import rate limiting for GitHub API
