@@ -802,3 +802,267 @@ def get_logger(log_level: str = 'INFO', console_output: bool = True) -> Logger:
 | `OPENCLAW_GATEWAY_TOKEN` | Authentication token | (none) |
 | `MC_CONFIG` | Config file path | `config.yaml` |
 | `LOG_LEVEL` | Logging level | `INFO` |
+
+
+
+### Operational Layer Improvements (v2)
+
+The following enhancements extend the operational layer with advanced features for scalability, reliability, and observability.
+
+#### 19. Task Dependency Graph
+
+**Location:** `orchestration/task_dependencies.py`
+
+Enables tasks to specify dependencies on other tasks:
+
+```python
+class DependencyManager:
+    """Manages task dependencies and execution order."""
+    
+    def can_execute(self, task_id: str) -> bool:
+        """Check if all dependencies are satisfied."""
+        
+    def get_ready_tasks(self) -> List[str]:
+        """Get all tasks ready for execution."""
+        
+    def check_dependencies(self, task_id: str) -> DependencyInfo:
+        """Get detailed dependency status."""
+        
+    def build_dependency_graph(self) -> Dict[str, List[str]]:
+        """Build complete dependency graph."""
+```
+
+**Task JSON with Dependencies:**
+```json
+{
+  "task_id": "task_frontend",
+  "depends_on": ["task_design", "task_api"],
+  "description": "Build frontend components"
+}
+```
+
+**Dependency States:**
+| State | Description |
+|-------|-------------|
+| `satisfied` | All dependencies completed successfully |
+| `pending` | Some dependencies not yet complete |
+| `blocked` | A dependency failed |
+| `missing` | A dependency task not found |
+
+#### 20. Execution Run Sessions
+
+**Location:** `orchestration/run_sessions.py`
+
+Isolated run sessions for tracking each Mission Control execution:
+
+```
+runs/
+└── run_20260311_143052_a1b2c3d4/
+    ├── metadata.json    # Run status, config, timestamps
+    ├── tasks.json       # All tasks in this run
+    ├── logs.json        # Structured event logs
+    ├── metrics.json     # Performance metrics
+    └── outputs/
+        └── {task_id}/
+            └── result.json
+```
+
+```python
+class RunSession:
+    """Manages a single execution run session."""
+    
+    def add_task(self, task_id: str, task_data: dict):
+        """Track a task in this run."""
+        
+    def log_event(self, event_type: str, data: dict):
+        """Log an event to the run."""
+        
+    def save_output(self, task_id: str, output: Any):
+        """Save agent output for a task."""
+        
+    def record_metric(self, name: str, value: Any):
+        """Record a metric value."""
+```
+
+#### 21. Agent Capability Index
+
+**Location:** `orchestration/capability_index.py`
+
+Matches tasks to agents based on capabilities parsed from soul.md files:
+
+```python
+class CapabilityIndex:
+    """Index of agent capabilities for task routing."""
+    
+    def load_agents(self):
+        """Load capabilities from workspace/agents."""
+        
+    def match_task_to_agents(self, task: dict, limit: int = 5) -> List[CapabilityMatch]:
+        """Find best agents for a task based on capabilities."""
+        
+    def get_agents_by_capability(self, capability: str) -> List[str]:
+        """Get agents with a specific capability."""
+```
+
+**Capability Match Scoring:**
+- Division match: +0.4
+- Keyword overlap: up to +0.3
+- Direct capability match: +0.15 each
+- Technical skill match: +0.1 each
+- Specialization bonus: +0.2
+
+#### 22. Scheduler Layer
+
+**Location:** `orchestration/scheduler.py`
+
+Dependency-aware scheduler with concurrency and rate control:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Scheduler Flow                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. Poll backlog tasks                                                │
+│         │                                                               │
+│         ▼                                                               │
+│   2. Check dependencies for each task                                  │
+│         │                                                               │
+│         ├── Satisfied → Add to ready queue                             │
+│         └── Pending/Blocked → Keep in backlog                          │
+│                                                                         │
+│   3. Sort ready tasks by priority and creation time                    │
+│         │                                                               │
+│         ▼                                                               │
+│   4. Check concurrency limit                                           │
+│         │                                                               │
+│         ▼                                                               │
+│   5. Check rate limit                                                  │
+│         │                                                               │
+│         ▼                                                               │
+│   6. Dispatch to Task Runner                                           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+```python
+class Scheduler:
+    """Task scheduler with dependency resolution."""
+    
+    PRIORITY_CRITICAL = 0
+    PRIORITY_HIGH = 1
+    PRIORITY_NORMAL = 2
+    PRIORITY_LOW = 3
+    
+    def start(self, blocking: bool = False):
+        """Start the scheduler."""
+        
+    def stop(self):
+        """Stop the scheduler."""
+        
+    def get_status(self) -> dict:
+        """Get scheduler status."""
+```
+
+**Configuration:**
+```yaml
+scheduler:
+  enabled: true
+  poll_interval: 2.0      # Seconds between polls
+  rate_limit: 0           # Tasks per second (0 = unlimited)
+
+task_processing:
+  max_concurrent: 5       # Parallel task limit
+```
+
+#### 23. Enhanced Observability
+
+**Locations:** 
+- `orchestration/metrics.py` - Metrics collection
+- `api/metrics_api.py` - HTTP API
+
+**Tracked Metrics:**
+| Metric | Type | Description |
+|--------|------|-------------|
+| `tasks_created` | Counter | Total tasks created |
+| `tasks_completed` | Counter | Successfully completed tasks |
+| `tasks_failed` | Counter | Failed tasks |
+| `tasks_dispatched` | Counter | Tasks sent to agents |
+| `agent_execution_time` | Timer | Execution duration per agent |
+| `scheduler_errors` | Counter | Scheduling errors |
+| `queue_depth` | Gauge | Current backlog size |
+
+```python
+from orchestration.metrics import get_metrics_collector
+
+metrics = get_metrics_collector()
+
+# Increment counters
+metrics.increment('tasks_completed')
+
+# Record timers
+with metrics.time('agent_execution_time'):
+    # execute task
+    pass
+
+# Get all metrics
+data = metrics.get_all_metrics()
+```
+
+**Metrics API Endpoints:**
+```bash
+GET /metrics          # All current metrics
+GET /metrics/summary  # Metric summaries with stats
+GET /metrics/history  # Recent metric history
+GET /health           # Health check
+GET /status           # System status (scheduler, run)
+GET /runs             # List recent runs
+```
+
+**Running with Metrics API:**
+```bash
+python run_mission_control.py --metrics-port 9090
+```
+
+### Updated Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    OPERATIONAL LAYER v2                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   run_mission_control.py                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     Mission Control                              │  │
+│   │  • Run Session management                                        │  │
+│   │  • Metrics collection                                            │  │
+│   │  • Capability index loading                                      │  │
+│   └──────────────────────────┬──────────────────────────────────────┘  │
+│                              │                                          │
+│   ┌──────────────────────────┴──────────────────────────────────────┐  │
+│   │                       Scheduler                                  │  │
+│   │  • Dependency resolution                                         │  │
+│   │  • Priority ordering                                             │  │
+│   │  • Rate limiting                                                 │  │
+│   └──────────────────────────┬──────────────────────────────────────┘  │
+│                              │                                          │
+│          ┌───────────────────┼───────────────────┐                     │
+│          ▼                   ▼                   ▼                     │
+│   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐             │
+│   │   OpenClaw   │   │    Task      │   │  Capability  │             │
+│   │   Connector  │   │    Runner    │   │    Index     │             │
+│   └──────────────┘   └──────────────┘   └──────────────┘             │
+│          │                   │                   │                     │
+│          └───────────────────┴───────────────────┘                     │
+│                              │                                          │
+│   ┌──────────────────────────┴──────────────────────────────────────┐  │
+│   │                  Run Session + Metrics                           │  │
+│   │  runs/{run_id}/ │ logs.json │ metrics.json │ outputs/           │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                          │
+│   ┌──────────────────────────┴──────────────────────────────────────┐  │
+│   │                    Metrics API (:9090)                           │  │
+│   │  /metrics │ /metrics/summary │ /status │ /runs                  │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
