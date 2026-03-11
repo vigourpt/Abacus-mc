@@ -20,6 +20,7 @@ const navSections: NavSection[] = [
     items: [
       { id: 'dashboard', icon: '📊', label: 'Overview' },
       { id: 'agents', icon: '🤖', label: 'Agents' },
+      { id: 'visualizer', icon: '🎮', label: 'Agent World' },
       { id: 'tasks', icon: '📋', label: 'Tasks' },
       { id: 'chat', icon: '💬', label: 'Chat' },
       { id: 'channels', icon: '📡', label: 'Channels' },

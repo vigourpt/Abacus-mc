@@ -16,3 +16,4 @@ export * from './SecurityPanel';
 export * from './GatewaysPanel';
 export * from './SettingsPanel';
 export * from './HiringPanel';
+export * from './AgentVisualizerPanel';

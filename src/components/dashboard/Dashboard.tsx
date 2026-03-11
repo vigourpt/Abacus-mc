@@ -27,6 +27,7 @@ import {
   GatewaysPanel,
   SettingsPanel,
   HiringPanel,
+  AgentVisualizerPanel,
 } from '@/components/panels';
 
 export function Dashboard() {
@@ -165,6 +166,7 @@ function PanelContent({ panel }: { panel: string }) {
   const panels: Record<string, React.ReactNode> = {
     // Main navigation
     agents: <AgentsPanel agents={agents} />,
+    visualizer: <AgentVisualizerPanel />,
     tasks: <TasksPanel tasks={tasks} />,
     chat: <ChatPanel />,
     channels: <ChannelsPanel />,
@@ -194,6 +196,7 @@ function PanelContent({ panel }: { panel: string }) {
     
     // Legacy/alternate names
     messages: <ChatPanel />,
+    'agent-world': <AgentVisualizerPanel />,
   };
 
   return <div className="h-full">{panels[panel] || <NotFoundPanel panel={panel} />}</div>;
