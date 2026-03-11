@@ -9,6 +9,7 @@ const navItems = [
   { id: 'tasks', icon: '📋', label: 'Tasks' },
   { id: 'messages', icon: '💬', label: 'Messages' },
   { id: 'hiring', icon: '👥', label: 'Hiring' },
+  { id: 'analytics', icon: '📈', label: 'Analytics' },
   { id: 'gateways', icon: '🔌', label: 'Gateways' },
   { id: 'settings', icon: '⚙️', label: 'Settings' },
 ];

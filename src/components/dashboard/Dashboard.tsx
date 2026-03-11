@@ -5,6 +5,7 @@ import { AgentCard } from './AgentCard';
 import { TaskSummary } from './TaskSummary';
 import { ActivityFeed } from './ActivityFeed';
 import { QuickActions } from './QuickActions';
+import { AnalyticsDashboard } from '@/components/analytics';
 
 export function Dashboard() {
   const { agents, tasks, activePanel } = useAppStore();
@@ -139,6 +140,7 @@ function PanelContent({ panel }: { panel: string }) {
     tasks: <TasksPanel />,
     messages: <MessagesPanel />,
     hiring: <HiringPanel />,
+    analytics: <AnalyticsDashboard />,
     gateways: <GatewaysPanel />,
     settings: <SettingsPanel />,
   };
