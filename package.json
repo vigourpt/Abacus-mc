@@ -12,7 +12,11 @@
     "test": "vitest",
     "test:e2e": "playwright test",
     "db:migrate": "tsx scripts/migrate.ts",
-    "agents:sync": "tsx scripts/sync-agents.ts"
+    "db:optimize": "tsx scripts/db-optimize.ts",
+    "db:status": "tsx scripts/db-optimize.ts status",
+    "agents:sync": "tsx scripts/sync-agents.ts",
+    "perf:report": "tsx scripts/performance-report.ts",
+    "perf:load-test": "tsx scripts/load-test.ts"
   },
   "dependencies": {
     "next": "^16.1.6",

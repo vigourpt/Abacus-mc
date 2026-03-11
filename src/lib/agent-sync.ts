@@ -430,3 +430,317 @@ export function getAgentCountByDivision(): Record<string, number> {
     return acc;
   }, {} as Record<string, number>);
 }
+
+
+
+// =====================================================
+// Phase 3 Enhancements: Bidirectional OpenClaw Sync
+// =====================================================
+
+import { getOpenClawClient } from './openclaw-client';
+import { getOpenClawConfig, type OpenClawChannel } from './openclaw-config';
+
+// OpenClaw agent format for sync
+export interface OpenClawAgentDefinition {
+  id: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+  systemPrompt: string;
+  channels: string[];
+  metadata: {
+    division: AgentDivision;
+    source: AgentSource;
+    technicalSkills: string[];
+    personalityTraits: string[];
+  };
+}
+
+/**
+ * Convert local agent to OpenClaw format
+ */
+export function convertToOpenClawFormat(agent: Agent): OpenClawAgentDefinition {
+  const config = getOpenClawConfig();
+  
+  // Get channels mapped to this agent
+  const channels = config.channels
+    .filter(ch => ch.agentMappings.some(m => m.agentSlug === agent.slug))
+    .map(ch => ch.id);
+
+  return {
+    id: agent.slug,
+    name: agent.name,
+    description: agent.description,
+    capabilities: agent.capabilities,
+    systemPrompt: agent.systemPrompt,
+    channels,
+    metadata: {
+      division: agent.division,
+      source: agent.source,
+      technicalSkills: agent.technicalSkills,
+      personalityTraits: agent.personalityTraits,
+    },
+  };
+}
+
+/**
+ * Convert OpenClaw agent to local format
+ */
+export function convertFromOpenClawFormat(
+  openclawAgent: OpenClawAgentDefinition
+): Partial<Agent> {
+  return {
+    slug: openclawAgent.id,
+    name: openclawAgent.name,
+    description: openclawAgent.description,
+    capabilities: openclawAgent.capabilities,
+    systemPrompt: openclawAgent.systemPrompt,
+    source: 'openclaw',
+    division: openclawAgent.metadata?.division || 'engineering',
+    technicalSkills: openclawAgent.metadata?.technicalSkills || [],
+    personalityTraits: openclawAgent.metadata?.personalityTraits || [],
+    emoji: '🤖',
+    color: 'blue',
+  };
+}
+
+/**
+ * Sync a single agent to OpenClaw gateway
+ */
+export async function syncAgentToOpenClaw(agentSlug: string): Promise<boolean> {
+  const agent = db
+    .prepare('SELECT * FROM agents WHERE slug = ?')
+    .get(agentSlug) as AgentRow | undefined;
+
+  if (!agent) {
+    logger.warn({ slug: agentSlug }, 'Agent not found for OpenClaw sync');
+    return false;
+  }
+
+  try {
+    const client = getOpenClawClient();
+    
+    if (client.getState() !== 'connected') {
+      logger.warn('OpenClaw client not connected, skipping sync');
+      return false;
+    }
+
+    const agentData: Agent = {
+      id: agent.id,
+      slug: agent.slug,
+      name: agent.name,
+      description: agent.description,
+      emoji: agent.emoji,
+      color: agent.color,
+      division: agent.division as AgentDivision,
+      specialization: agent.specialization || undefined,
+      source: agent.source as AgentSource,
+      sourceUrl: agent.source_url || undefined,
+      status: agent.status as Agent['status'],
+      capabilities: JSON.parse(agent.capabilities || '[]'),
+      technicalSkills: JSON.parse(agent.technical_skills || '[]'),
+      personalityTraits: JSON.parse(agent.personality_traits || '[]'),
+      systemPrompt: agent.system_prompt,
+      workspacePath: agent.workspace_path || undefined,
+      model: JSON.parse(agent.model_config || '{}'),
+      metrics: JSON.parse(agent.metrics || '{}'),
+      dependencies: JSON.parse(agent.dependencies || '[]'),
+      collaborationStyle: agent.collaboration_style || undefined,
+      lastHeartbeat: agent.last_heartbeat ? new Date(agent.last_heartbeat) : undefined,
+      createdAt: new Date(agent.created_at),
+      updatedAt: new Date(agent.updated_at),
+    };
+
+    const openclawFormat = convertToOpenClawFormat(agentData);
+    await client.syncAgent({
+      slug: openclawFormat.id,
+      name: openclawFormat.name,
+      description: openclawFormat.description,
+      capabilities: openclawFormat.capabilities,
+      systemPrompt: openclawFormat.systemPrompt,
+    });
+
+    logger.info({ slug: agentSlug }, 'Agent synced to OpenClaw');
+    return true;
+  } catch (error) {
+    logger.error({ error, slug: agentSlug }, 'Failed to sync agent to OpenClaw');
+    return false;
+  }
+}
+
+/**
+ * Sync all agents to OpenClaw gateway
+ */
+export async function syncAllAgentsToOpenClaw(): Promise<{
+  synced: number;
+  failed: number;
+  skipped: number;
+}> {
+  const client = getOpenClawClient();
+  
+  if (client.getState() !== 'connected') {
+    logger.warn('OpenClaw client not connected, skipping bulk sync');
+    return { synced: 0, failed: 0, skipped: 0 };
+  }
+
+  const agents = db.prepare('SELECT slug FROM agents').all() as Array<{ slug: string }>;
+  
+  let synced = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const agent of agents) {
+    try {
+      const success = await syncAgentToOpenClaw(agent.slug);
+      if (success) {
+        synced++;
+      } else {
+        skipped++;
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  logger.info({ synced, failed, skipped }, 'Bulk OpenClaw sync completed');
+  return { synced, failed, skipped };
+}
+
+/**
+ * Pull agents from OpenClaw gateway
+ */
+export async function pullAgentsFromOpenClaw(): Promise<number> {
+  const client = getOpenClawClient();
+  
+  if (client.getState() !== 'connected') {
+    logger.warn('OpenClaw client not connected, cannot pull agents');
+    return 0;
+  }
+
+  try {
+    // Request agent list from OpenClaw
+    const response = await client.send('agent_sync', { action: 'list' }, true) as {
+      agents: OpenClawAgentDefinition[];
+    };
+
+    if (!response?.agents) {
+      return 0;
+    }
+
+    let imported = 0;
+    for (const openclawAgent of response.agents) {
+      const localAgent = convertFromOpenClawFormat(openclawAgent);
+      upsertAgentFromSoul(localAgent);
+      imported++;
+    }
+
+    logger.info({ count: imported }, 'Agents pulled from OpenClaw');
+    return imported;
+  } catch (error) {
+    logger.error({ error }, 'Failed to pull agents from OpenClaw');
+    return 0;
+  }
+}
+
+/**
+ * Bidirectional sync with OpenClaw
+ */
+export async function bidirectionalSync(): Promise<{
+  pushed: number;
+  pulled: number;
+  local: number;
+  workspace: number;
+}> {
+  // First sync from local sources
+  const { openclaw: fromOpenclawConfig, workspace } = await syncAll();
+  
+  // Then sync to OpenClaw gateway
+  const pushResult = await syncAllAgentsToOpenClaw();
+  
+  // Finally pull any new agents from OpenClaw
+  const pulled = await pullAgentsFromOpenClaw();
+
+  return {
+    pushed: pushResult.synced,
+    pulled,
+    local: fromOpenclawConfig,
+    workspace,
+  };
+}
+
+/**
+ * Delete agent from OpenClaw
+ */
+export async function deleteAgentFromOpenClaw(agentSlug: string): Promise<boolean> {
+  const client = getOpenClawClient();
+  
+  if (client.getState() !== 'connected') {
+    logger.warn('OpenClaw client not connected, cannot delete agent');
+    return false;
+  }
+
+  try {
+    await client.send('agent_sync', { action: 'delete', agentId: agentSlug }, true);
+    logger.info({ slug: agentSlug }, 'Agent deleted from OpenClaw');
+    return true;
+  } catch (error) {
+    logger.error({ error, slug: agentSlug }, 'Failed to delete agent from OpenClaw');
+    return false;
+  }
+}
+
+/**
+ * Update agent channels in OpenClaw
+ */
+export async function updateAgentChannels(
+  agentSlug: string,
+  channels: string[]
+): Promise<boolean> {
+  const client = getOpenClawClient();
+  
+  if (client.getState() !== 'connected') {
+    logger.warn('OpenClaw client not connected');
+    return false;
+  }
+
+  try {
+    await client.send('agent_sync', {
+      action: 'update_channels',
+      agentId: agentSlug,
+      channels,
+    }, true);
+    
+    logger.info({ slug: agentSlug, channels }, 'Agent channels updated in OpenClaw');
+    return true;
+  } catch (error) {
+    logger.error({ error, slug: agentSlug }, 'Failed to update agent channels');
+    return false;
+  }
+}
+
+// Type import for AgentRow
+interface AgentRow {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  emoji: string;
+  color: string;
+  division: string;
+  specialization: string | null;
+  source: string;
+  source_url: string | null;
+  status: string;
+  capabilities: string;
+  technical_skills: string;
+  personality_traits: string;
+  system_prompt: string;
+  workspace_path: string | null;
+  model_config: string;
+  metrics: string;
+  dependencies: string;
+  collaboration_style: string | null;
+  last_heartbeat: string | null;
+  created_at: string;
+  updated_at: string;
+}

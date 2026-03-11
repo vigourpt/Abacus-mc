@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAppStore } from '@/store';
 import { Agent, AgentDivision, Task } from '@/types';
 import { cn } from '@/lib/utils';
@@ -46,14 +46,6 @@ const DIVISION_ACCESSORIES: Record<AgentDivision, { head?: string; hand?: string
 // Agent visual states
 type AgentState = 'idle' | 'working' | 'thinking' | 'completed' | 'sleeping';
 
-interface LocationInfo {
-  floor: number;
-  floorName: string;
-  division: AgentDivision;
-  deskNumber: number;
-  workstation: string;
-}
-
 interface PixelAgent {
   id: string;
   name: string;
@@ -70,8 +62,6 @@ interface PixelAgent {
   speechTimer: number;
   hairStyle: number;
   facingLeft: boolean;
-  isActive: boolean;
-  location: LocationInfo;
 }
 
 interface FloorConfig {
@@ -89,12 +79,6 @@ const FLOORS: FloorConfig[] = [
   { name: 'Operations Center', divisions: ['operations', 'project-management', 'support', 'specialized'], color: '#151a0a', bgPattern: 'ops' },
 ];
 
-// View mode type
-type ViewMode = 'office' | 'grid' | 'flow';
-
-// Filter mode type
-type FilterMode = 'all' | 'active' | 'inactive';
-
 // Character sprite drawing functions
 function drawCharacter(
   ctx: CanvasRenderingContext2D,
@@ -105,9 +89,7 @@ function drawCharacter(
   frame: number,
   accessories: { head?: string; hand?: string },
   hairStyle: number,
-  facingLeft: boolean,
-  isActive: boolean,
-  dimmed: boolean = false
+  facingLeft: boolean
 ) {
   const scale = 1;
   const w = 32 * scale;
@@ -119,12 +101,6 @@ function drawCharacter(
   const armSwing = state === 'working' ? Math.sin(frame * 0.4) * 15 : 0;
   
   ctx.save();
-  
-  // Apply dimming for inactive agents
-  if (dimmed) {
-    ctx.globalAlpha = 0.4;
-  }
-  
   if (facingLeft) {
     ctx.translate(x + w, y);
     ctx.scale(-1, 1);
@@ -582,84 +558,6 @@ function drawChair(ctx: CanvasRenderingContext2D, x: number, y: number, color: s
   }
 }
 
-// Helper function to calculate agent position based on view mode
-function calculateAgentPosition(
-  agent: Agent,
-  index: number,
-  viewMode: ViewMode,
-  allAgents: Agent[],
-  canvasWidth: number,
-  canvasHeight: number
-): { x: number; y: number; location: LocationInfo } {
-  const divisionIndex = FLOORS.findIndex(f => f.divisions.includes(agent.division));
-  const floor = divisionIndex >= 0 ? divisionIndex : 4;
-  const floorConfig = FLOORS[floor];
-  
-  // Calculate desk number based on position within division
-  const divisionAgents = allAgents.filter(a => a.division === agent.division);
-  const posInDivision = divisionAgents.findIndex(a => a.id === agent.id);
-  const deskNumber = posInDivision + 1;
-  
-  const location: LocationInfo = {
-    floor: floor + 1,
-    floorName: floorConfig.name,
-    division: agent.division,
-    deskNumber,
-    workstation: `${floorConfig.name.split(' ')[0]}-${agent.division.charAt(0).toUpperCase()}${deskNumber.toString().padStart(2, '0')}`,
-  };
-
-  let x = 0, y = 0;
-  
-  switch (viewMode) {
-    case 'office': {
-      // Office layout - organized by floors/divisions with desks
-      const floorAgents = allAgents.filter(a => 
-        FLOORS[floor].divisions.includes(a.division)
-      );
-      const posInFloor = floorAgents.findIndex(a => a.id === agent.id);
-      const col = posInFloor % 6;
-      const row = Math.floor(posInFloor / 6);
-      x = 120 + col * 120;
-      y = 130 + floor * 180 + row * 80;
-      break;
-    }
-    
-    case 'grid': {
-      // Grid layout - simple uniform grid, all agents visible
-      const cols = Math.ceil(Math.sqrt(allAgents.length * 1.5));
-      const col = index % cols;
-      const row = Math.floor(index / cols);
-      const cellWidth = 80;
-      const cellHeight = 70;
-      x = 60 + col * cellWidth;
-      y = 60 + row * cellHeight;
-      break;
-    }
-    
-    case 'flow': {
-      // Flow layout - organic flowing arrangement showing task flow
-      // Group by division, arrange in a flowing pattern
-      const divisionOrder = FLOORS.flatMap(f => f.divisions);
-      const divIndex = divisionOrder.indexOf(agent.division);
-      const divAgents = allAgents.filter(a => a.division === agent.division);
-      const posInDiv = divAgents.findIndex(a => a.id === agent.id);
-      
-      // Arrange in flowing waves
-      const waveAmplitude = 40;
-      const baseX = 100 + (divIndex % 5) * 160;
-      const baseY = 80 + Math.floor(divIndex / 5) * 200;
-      const angle = (posInDiv / Math.max(divAgents.length, 1)) * Math.PI * 2;
-      const radius = 30 + posInDiv * 12;
-      
-      x = baseX + Math.cos(angle) * radius;
-      y = baseY + Math.sin(angle) * radius * 0.6 + Math.sin(posInDiv * 0.5) * waveAmplitude;
-      break;
-    }
-  }
-  
-  return { x, y, location };
-}
-
 export function AgentVisualizerPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -670,50 +568,30 @@ export function AgentVisualizerPanel() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
-  const [viewMode, setViewMode] = useState<ViewMode>('office');
-  const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [viewMode, setViewMode] = useState<'office' | 'grid' | 'flow'>('office');
   const [showLabels, setShowLabels] = useState(true);
   const [autoAnimate, setAutoAnimate] = useState(true);
   const animationRef = useRef<number | null>(null);
   const frameCountRef = useRef(0);
 
-  // Calculate active agents
-  const { activeAgents, inactiveAgents, filteredAgents } = useMemo(() => {
-    const active = agents.filter(a => {
-      const hasTasks = tasks.some(t => t.assignedTo === a.id && ['in_progress', 'todo', 'review'].includes(t.status));
-      const isActiveStatus = a.status === 'active' || a.status === 'busy';
-      return hasTasks || isActiveStatus;
-    });
-    const inactive = agents.filter(a => !active.includes(a));
-    
-    let filtered: Agent[];
-    switch (filterMode) {
-      case 'active':
-        filtered = active;
-        break;
-      case 'inactive':
-        filtered = inactive;
-        break;
-      default:
-        filtered = agents;
-    }
-    
-    return { activeAgents: active, inactiveAgents: inactive, filteredAgents: filtered };
-  }, [agents, tasks, filterMode]);
-
-  // Convert real agents to pixel agents with positions - now responds to viewMode changes
+  // Convert real agents to pixel agents with positions
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const canvasWidth = canvas?.width || 900;
-    const canvasHeight = canvas?.height || 700;
-    
-    const newPixelAgents: PixelAgent[] = filteredAgents.map((agent, index) => {
-      const { x, y, location } = calculateAgentPosition(agent, index, viewMode, filteredAgents, canvasWidth, canvasHeight);
+    const newPixelAgents: PixelAgent[] = agents.map((agent, index) => {
+      const divisionIndex = FLOORS.findIndex(f => f.divisions.includes(agent.division));
+      const floor = divisionIndex >= 0 ? divisionIndex : 4;
+      const floorAgents = agents.filter(a => 
+        FLOORS[floor].divisions.includes(a.division)
+      );
+      const posInFloor = floorAgents.findIndex(a => a.id === agent.id);
+      
+      // Better spacing - 6 agents per row with more space
+      const col = posInFloor % 6;
+      const row = Math.floor(posInFloor / 6);
+      const baseX = 120 + col * 120;
+      const baseY = 130 + floor * 180 + row * 80;
       
       const agentTasks = tasks.filter(t => t.assignedTo === agent.id && t.status === 'in_progress');
       const currentTask = agentTasks[0]?.title;
-      
-      const isActive = activeAgents.some(a => a.id === agent.id);
       
       let status: AgentState = 'idle';
       if (agent.status === 'sleeping') status = 'sleeping';
@@ -727,22 +605,20 @@ export function AgentVisualizerPanel() {
         emoji: agent.emoji,
         division: agent.division,
         status,
-        x,
-        y,
-        targetX: x + (Math.random() * 10 - 5),
-        targetY: y + (Math.random() * 6 - 3),
+        x: baseX,
+        y: baseY,
+        targetX: baseX + (Math.random() * 10 - 5),
+        targetY: baseY + (Math.random() * 6 - 3),
         currentTask,
         frame: Math.floor(Math.random() * 60),
         speechBubble: currentTask ? `Working on: ${currentTask.slice(0, 20)}...` : undefined,
         speechTimer: 0,
         hairStyle: Math.floor(Math.random() * 8),
         facingLeft: Math.random() > 0.5,
-        isActive,
-        location,
       };
     });
     setPixelAgents(newPixelAgents);
-  }, [filteredAgents, tasks, viewMode, activeAgents]);
+  }, [agents, tasks]);
 
   // Animation loop
   useEffect(() => {
@@ -761,18 +637,19 @@ export function AgentVisualizerPanel() {
         if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
           newAgent.x += dx * 0.03;
           newAgent.y += dy * 0.03;
-        } else if (frameCountRef.current % 180 === 0 && viewMode === 'office') {
-          // Only do random movement in office mode
-          const canvas = canvasRef.current;
-          const canvasWidth = canvas?.width || 900;
-          const canvasHeight = canvas?.height || 700;
-          const originalAgent = filteredAgents.find(a => a.id === agent.id);
-          if (originalAgent) {
-            const index = filteredAgents.indexOf(originalAgent);
-            const { x: baseX, y: baseY } = calculateAgentPosition(originalAgent, index, viewMode, filteredAgents, canvasWidth, canvasHeight);
-            newAgent.targetX = baseX + (Math.random() * 16 - 8);
-            newAgent.targetY = baseY + (Math.random() * 10 - 5);
-          }
+        } else if (frameCountRef.current % 180 === 0) {
+          // Set new random target occasionally - subtle movement
+          const divisionIndex = FLOORS.findIndex(f => f.divisions.includes(agent.division));
+          const floor = divisionIndex >= 0 ? divisionIndex : 4;
+          const floorAgents = agents.filter(a => FLOORS[floor].divisions.includes(a.division));
+          const posInFloor = floorAgents.findIndex(a => a.id === agent.id);
+          const col = posInFloor % 6;
+          const row = Math.floor(posInFloor / 6);
+          const baseX = 120 + col * 120;
+          const baseY = 130 + floor * 180 + row * 80;
+          
+          newAgent.targetX = baseX + (Math.random() * 16 - 8);
+          newAgent.targetY = baseY + (Math.random() * 10 - 5);
         }
         
         // Update speech timer
@@ -792,7 +669,7 @@ export function AgentVisualizerPanel() {
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [autoAnimate, filteredAgents, viewMode]);
+  }, [autoAnimate, agents]);
 
   // Canvas rendering
   useEffect(() => {
@@ -808,150 +685,70 @@ export function AgentVisualizerPanel() {
       ctx.translate(pan.x, pan.y);
       ctx.scale(zoom, zoom);
       
-      // Draw background based on view mode
-      if (viewMode === 'office') {
-        // Draw floors with better styling
-        FLOORS.forEach((floor, floorIndex) => {
-          const floorY = 80 + floorIndex * 180;
-          const floorHeight = 160;
-          
-          // Floor background with gradient
-          const gradient = ctx.createLinearGradient(50, floorY, 50, floorY + floorHeight);
-          gradient.addColorStop(0, floor.color);
-          gradient.addColorStop(1, adjustColor(floor.color, -20));
-          ctx.fillStyle = gradient;
+      // Draw floors with better styling
+      FLOORS.forEach((floor, floorIndex) => {
+        const floorY = 80 + floorIndex * 180;
+        const floorHeight = 160;
+        
+        // Floor background with gradient
+        const gradient = ctx.createLinearGradient(50, floorY, 50, floorY + floorHeight);
+        gradient.addColorStop(0, floor.color);
+        gradient.addColorStop(1, adjustColor(floor.color, -20));
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.roundRect(50, floorY, 800, floorHeight, 8);
+        ctx.fill();
+        
+        // Floor border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        // Floor label with background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.beginPath();
+        ctx.roundRect(60, floorY + 8, 140, 28, 4);
+        ctx.fill();
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px system-ui, sans-serif';
+        ctx.fillText(floor.name, 70, floorY + 26);
+        
+        // Division pills
+        let pillX = 70;
+        floor.divisions.forEach(div => {
+          const color = DIVISION_COLORS[div]?.primary || '#888';
+          ctx.fillStyle = color + '40';
+          const pillWidth = ctx.measureText(div).width + 12;
           ctx.beginPath();
-          ctx.roundRect(50, floorY, 800, floorHeight, 8);
+          ctx.roundRect(pillX, floorY + 40, pillWidth, 16, 8);
           ctx.fill();
-          
-          // Floor border
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-          
-          // Floor label with background
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-          ctx.beginPath();
-          ctx.roundRect(60, floorY + 8, 140, 28, 4);
-          ctx.fill();
-          
-          ctx.fillStyle = '#fff';
-          ctx.font = 'bold 12px system-ui, sans-serif';
-          ctx.fillText(floor.name, 70, floorY + 26);
-          
-          // Division pills
-          let pillX = 70;
-          floor.divisions.forEach(div => {
-            const color = DIVISION_COLORS[div]?.primary || '#888';
-            ctx.fillStyle = color + '40';
-            const pillWidth = ctx.measureText(div).width + 12;
-            ctx.beginPath();
-            ctx.roundRect(pillX, floorY + 40, pillWidth, 16, 8);
-            ctx.fill();
-            ctx.fillStyle = color;
-            ctx.font = '9px system-ui, sans-serif';
-            ctx.fillText(div, pillX + 6, floorY + 52);
-            pillX += pillWidth + 6;
-          });
-          
-          // Draw desks and chairs for each position
-          for (let row = 0; row < 2; row++) {
-            for (let col = 0; col < 6; col++) {
-              const deskX = 95 + col * 120;
-              const deskY = floorY + 75 + row * 80;
-              
-              // Only draw if there might be an agent here
-              const agentIndex = row * 6 + col;
-              const floorAgents = pixelAgents.filter(a => 
-                floor.divisions.includes(a.division)
-              );
-              
-              if (agentIndex < floorAgents.length) {
-                drawDesk(ctx, deskX, deskY, true);
-                const chairColor = DIVISION_COLORS[floorAgents[agentIndex].division]?.primary + '80' || '#666';
-                drawChair(ctx, deskX + 18, deskY + 15, chairColor);
-              }
+          ctx.fillStyle = color;
+          ctx.font = '9px system-ui, sans-serif';
+          ctx.fillText(div, pillX + 6, floorY + 52);
+          pillX += pillWidth + 6;
+        });
+        
+        // Draw desks and chairs for each position
+        for (let row = 0; row < 2; row++) {
+          for (let col = 0; col < 6; col++) {
+            const deskX = 95 + col * 120;
+            const deskY = floorY + 75 + row * 80;
+            
+            // Only draw if there might be an agent here
+            const agentIndex = row * 6 + col;
+            const floorAgents = pixelAgents.filter(a => 
+              floor.divisions.includes(a.division)
+            );
+            
+            if (agentIndex < floorAgents.length) {
+              drawDesk(ctx, deskX, deskY, true);
+              const chairColor = DIVISION_COLORS[floorAgents[agentIndex].division]?.primary + '80' || '#666';
+              drawChair(ctx, deskX + 18, deskY + 15, chairColor);
             }
           }
-        });
-      } else if (viewMode === 'grid') {
-        // Grid view - simple dark background with grid lines
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, canvas.width / zoom, canvas.height / zoom);
-        
-        // Draw subtle grid
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.lineWidth = 1;
-        for (let x = 0; x < canvas.width / zoom; x += 80) {
-          ctx.beginPath();
-          ctx.moveTo(x, 0);
-          ctx.lineTo(x, canvas.height / zoom);
-          ctx.stroke();
         }
-        for (let y = 0; y < canvas.height / zoom; y += 70) {
-          ctx.beginPath();
-          ctx.moveTo(0, y);
-          ctx.lineTo(canvas.width / zoom, y);
-          ctx.stroke();
-        }
-        
-        // Draw title
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 16px system-ui, sans-serif';
-        ctx.fillText('Grid View - All Agents', 60, 30);
-        ctx.font = '12px system-ui, sans-serif';
-        ctx.fillStyle = '#888';
-        ctx.fillText(`${pixelAgents.length} agents displayed`, 60, 48);
-      } else if (viewMode === 'flow') {
-        // Flow view - organic background
-        ctx.fillStyle = '#0a0f1a';
-        ctx.fillRect(0, 0, canvas.width / zoom, canvas.height / zoom);
-        
-        // Draw flowing lines connecting divisions
-        ctx.strokeStyle = 'rgba(0, 200, 255, 0.1)';
-        ctx.lineWidth = 2;
-        const divisionOrder = FLOORS.flatMap(f => f.divisions);
-        divisionOrder.forEach((div, i) => {
-          const divAgents = pixelAgents.filter(a => a.division === div);
-          if (divAgents.length > 1) {
-            ctx.beginPath();
-            divAgents.forEach((agent, j) => {
-              if (j === 0) ctx.moveTo(agent.x + 16, agent.y + 24);
-              else ctx.lineTo(agent.x + 16, agent.y + 24);
-            });
-            ctx.stroke();
-          }
-        });
-        
-        // Draw division labels
-        const drawnDivisions = new Set<string>();
-        pixelAgents.forEach(agent => {
-          if (!drawnDivisions.has(agent.division)) {
-            drawnDivisions.add(agent.division);
-            const divAgents = pixelAgents.filter(a => a.division === agent.division);
-            const centerX = divAgents.reduce((sum, a) => sum + a.x, 0) / divAgents.length;
-            const minY = Math.min(...divAgents.map(a => a.y)) - 30;
-            
-            const color = DIVISION_COLORS[agent.division]?.primary || '#888';
-            ctx.fillStyle = color + '60';
-            const labelWidth = ctx.measureText(agent.division).width + 16;
-            ctx.beginPath();
-            ctx.roundRect(centerX - labelWidth/2, minY, labelWidth, 20, 10);
-            ctx.fill();
-            
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 10px system-ui, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(agent.division, centerX, minY + 14);
-            ctx.textAlign = 'left';
-          }
-        });
-        
-        // Draw title
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 16px system-ui, sans-serif';
-        ctx.fillText('Flow View - Task Flow Visualization', 60, 30);
-      }
+      });
       
       // Draw agents (sorted by Y for proper layering)
       const sortedAgents = [...pixelAgents].sort((a, b) => a.y - b.y);
@@ -960,9 +757,6 @@ export function AgentVisualizerPanel() {
         const isSelected = selectedAgent?.id === agent.id;
         const colors = DIVISION_COLORS[agent.division] || { primary: '#888', secondary: '#666', skin: '#FFDAB9' };
         const accessories = DIVISION_ACCESSORIES[agent.division] || {};
-        
-        // Dim inactive agents when showing all
-        const shouldDim = filterMode === 'all' && !agent.isActive;
         
         // Draw the character
         drawCharacter(
@@ -974,29 +768,16 @@ export function AgentVisualizerPanel() {
           agent.frame,
           accessories,
           agent.hairStyle,
-          agent.facingLeft,
-          agent.isActive,
-          shouldDim
+          agent.facingLeft
         );
         
         // Status indicator glow for working agents
-        if (agent.status === 'working' && !shouldDim) {
+        if (agent.status === 'working') {
           const pulse = Math.sin(agent.frame * 0.1) * 0.3 + 0.7;
           ctx.strokeStyle = `rgba(0, 255, 100, ${pulse * 0.5})`;
           ctx.lineWidth = 2;
           ctx.beginPath();
           ctx.arc(agent.x + 16, agent.y + 24, 24 + pulse * 4, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-        
-        // Active indicator badge
-        if (agent.isActive && !shouldDim) {
-          ctx.fillStyle = '#22c55e';
-          ctx.beginPath();
-          ctx.arc(agent.x + 28, agent.y + 4, 5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = '#0a0a0a';
-          ctx.lineWidth = 1;
           ctx.stroke();
         }
         
@@ -1016,12 +797,12 @@ export function AgentVisualizerPanel() {
           const labelWidth = ctx.measureText(name).width + 8;
           
           // Label background
-          ctx.fillStyle = shouldDim ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.7)';
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
           ctx.beginPath();
           ctx.roundRect(agent.x + 16 - labelWidth/2, labelY - 2, labelWidth, 14, 3);
           ctx.fill();
           
-          ctx.fillStyle = shouldDim ? '#666' : '#fff';
+          ctx.fillStyle = '#fff';
           ctx.font = '9px system-ui, sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText(name, agent.x + 16, labelY + 8);
@@ -1029,7 +810,7 @@ export function AgentVisualizerPanel() {
         }
         
         // Speech bubble with better styling
-        if (agent.speechTimer > 0 && agent.currentTask && !shouldDim) {
+        if (agent.speechTimer > 0 && agent.currentTask) {
           const bubbleX = agent.x + 40;
           const bubbleY = agent.y - 30;
           const text = agent.currentTask.slice(0, 28);
@@ -1066,7 +847,7 @@ export function AgentVisualizerPanel() {
     };
     
     render();
-  }, [pixelAgents, selectedAgent, zoom, pan, showLabels, viewMode, filterMode]);
+  }, [pixelAgents, selectedAgent, zoom, pan, showLabels]);
 
   // Helper function to adjust color brightness
   function adjustColor(color: string, amount: number): string {
@@ -1152,6 +933,9 @@ export function AgentVisualizerPanel() {
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span>🎮</span> Agent World
+            <span className="ml-2 px-2.5 py-0.5 bg-cyan-600/20 text-cyan-400 text-sm font-semibold rounded-full">
+              {agents.length} agents
+            </span>
           </h2>
           
           {/* View Mode Tabs */}
@@ -1161,58 +945,35 @@ export function AgentVisualizerPanel() {
                 key={mode}
                 onClick={() => setViewMode(mode)}
                 className={cn(
-                  'px-3 py-1.5 rounded text-xs font-medium transition-all',
+                  'px-3 py-1 rounded text-xs font-medium transition-colors',
                   viewMode === mode
-                    ? 'bg-cyan-600 text-white shadow-lg'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    ? 'bg-cyan-600 text-white'
+                    : 'text-gray-400 hover:text-white'
                 )}
               >
-                {mode === 'office' && '🏢 '}
-                {mode === 'grid' && '⊞ '}
-                {mode === 'flow' && '〰️ '}
                 {mode.charAt(0).toUpperCase() + mode.slice(1)}
               </button>
             ))}
           </div>
-          
-          {/* Filter Controls */}
-          <div className="flex items-center gap-2 border-l border-gray-700 pl-4">
-            <span className="text-xs text-gray-500">Show:</span>
-            <div className="flex bg-gray-800 rounded-lg p-0.5">
-              {(['all', 'active', 'inactive'] as const).map(mode => (
-                <button
-                  key={mode}
-                  onClick={() => setFilterMode(mode)}
-                  className={cn(
-                    'px-2.5 py-1 rounded text-xs font-medium transition-all',
-                    filterMode === mode
-                      ? mode === 'active' ? 'bg-green-600 text-white' 
-                        : mode === 'inactive' ? 'bg-gray-600 text-white'
-                        : 'bg-cyan-600 text-white'
-                      : 'text-gray-400 hover:text-white'
-                  )}
-                >
-                  {mode === 'all' && 'All'}
-                  {mode === 'active' && `Active (${activeAgents.length})`}
-                  {mode === 'inactive' && `Idle (${inactiveAgents.length})`}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
         
         <div className="flex items-center gap-3">
-          {/* Agent Count Display */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className="flex items-center gap-1.5 px-2 py-1 bg-green-900/30 rounded-full border border-green-800/50">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-green-400 font-medium">{activeAgents.length} active</span>
-            </span>
-            <span className="text-gray-500">•</span>
-            <span className="flex items-center gap-1.5 px-2 py-1 bg-gray-800/50 rounded-full border border-gray-700/50">
-              <span className="w-2 h-2 rounded-full bg-gray-500" />
-              <span className="text-gray-400">{inactiveAgents.length} idle</span>
-            </span>
+          {/* Status Legend */}
+          <div className="flex items-center gap-3 text-xs">
+            {Object.entries(statusCounts).map(([status, count]) => (
+              <span key={status} className="flex items-center gap-1.5 text-gray-300">
+                <span className={cn(
+                  'w-2.5 h-2.5 rounded-full',
+                  status === 'working' && 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]',
+                  status === 'thinking' && 'bg-yellow-400',
+                  status === 'idle' && 'bg-gray-500',
+                  status === 'sleeping' && 'bg-blue-400',
+                  status === 'completed' && 'bg-cyan-400',
+                )} />
+                <span className="capitalize">{status}</span>
+                <span className="text-gray-500">({count})</span>
+              </span>
+            ))}
           </div>
           
           {/* Controls */}
@@ -1262,12 +1023,7 @@ export function AgentVisualizerPanel() {
           <canvas
             ref={canvasRef}
             className="absolute inset-0"
-            style={{ background: viewMode === 'office' 
-              ? 'linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 50%, #0a0a1a 100%)'
-              : viewMode === 'grid' 
-                ? '#0d1117'
-                : '#0a0f1a'
-            }}
+            style={{ background: 'linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 50%, #0a0a1a 100%)' }}
           />
           
           {/* Loading overlay */}
@@ -1280,13 +1036,6 @@ export function AgentVisualizerPanel() {
               </div>
             </div>
           )}
-          
-          {/* View mode indicator */}
-          <div className="absolute top-4 right-4 text-xs text-gray-400 bg-black/40 px-3 py-1.5 rounded-lg">
-            {viewMode === 'office' && '🏢 Office View - Organized by floors & divisions'}
-            {viewMode === 'grid' && '⊞ Grid View - Compact uniform layout'}
-            {viewMode === 'flow' && '〰️ Flow View - Grouped by division'}
-          </div>
           
           {/* Instructions */}
           <div className="absolute bottom-4 left-4 text-xs text-gray-500 bg-black/30 px-3 py-2 rounded-lg">
@@ -1310,22 +1059,15 @@ export function AgentVisualizerPanel() {
                 </div>
                 <div>
                   <h3 className="font-bold text-white text-lg">{selectedAgent.name}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <p 
-                      className="text-xs font-medium px-2 py-0.5 rounded-full inline-block"
-                      style={{ 
-                        backgroundColor: DIVISION_COLORS[selectedAgent.division]?.primary + '30',
-                        color: DIVISION_COLORS[selectedAgent.division]?.primary
-                      }}
-                    >
-                      {selectedAgent.division}
-                    </p>
-                    {selectedAgent.isActive && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-900/50 text-green-400 border border-green-800/50">
-                        ● Active
-                      </span>
-                    )}
-                  </div>
+                  <p 
+                    className="text-xs font-medium px-2 py-0.5 rounded-full inline-block mt-1"
+                    style={{ 
+                      backgroundColor: DIVISION_COLORS[selectedAgent.division]?.primary + '30',
+                      color: DIVISION_COLORS[selectedAgent.division]?.primary
+                    }}
+                  >
+                    {selectedAgent.division}
+                  </p>
                 </div>
               </div>
               
@@ -1351,38 +1093,11 @@ export function AgentVisualizerPanel() {
                   </div>
                 )}
                 
-                {/* Location Info - Meaningful instead of X/Y coordinates */}
                 <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Location</span>
-                  <div className="mt-2 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Floor</span>
-                      <span className="text-sm text-white font-medium">
-                        {selectedAgent.location.floorName}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Division</span>
-                      <span 
-                        className="text-sm font-medium capitalize"
-                        style={{ color: DIVISION_COLORS[selectedAgent.division]?.primary }}
-                      >
-                        {selectedAgent.division}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Workstation</span>
-                      <span className="text-sm text-cyan-400 font-mono">
-                        {selectedAgent.location.workstation}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Desk</span>
-                      <span className="text-sm text-gray-300">
-                        #{selectedAgent.location.deskNumber}
-                      </span>
-                    </div>
-                  </div>
+                  <span className="text-xs text-gray-500 uppercase tracking-wide">Position</span>
+                  <p className="text-sm text-gray-300 mt-2 font-mono">
+                    X: {Math.round(selectedAgent.x)} • Y: {Math.round(selectedAgent.y)}
+                  </p>
                 </div>
               </div>
               
@@ -1397,112 +1112,57 @@ export function AgentVisualizerPanel() {
             <div className="p-4">
               <h3 className="font-bold text-white mb-4 text-lg">🏢 Office Overview</h3>
               <div className="space-y-3">
-                {FLOORS.map(floor => {
-                  const floorAgentCount = floor.divisions.reduce((sum, div) => sum + (divisionCounts[div] || 0), 0);
-                  const floorActiveCount = pixelAgents.filter(
-                    a => floor.divisions.includes(a.division) && a.isActive
-                  ).length;
-                  
-                  return (
-                    <div 
-                      key={floor.name} 
-                      className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50 hover:border-gray-600/50 transition-all"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-white">{floor.name}</span>
-                        <div className="flex items-center gap-2">
-                          {floorActiveCount > 0 && (
-                            <span className="text-xs text-green-400 font-medium bg-green-400/10 px-1.5 py-0.5 rounded">
-                              {floorActiveCount} active
-                            </span>
-                          )}
-                          <span className="text-xs text-cyan-400 font-medium bg-cyan-400/10 px-2 py-0.5 rounded-full">
-                            {floorAgentCount} agents
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {floor.divisions.map(div => (
-                          <span
-                            key={div}
-                            className="px-2 py-1 rounded-full text-xs font-medium"
-                            style={{ 
-                              backgroundColor: DIVISION_COLORS[div]?.primary + '20',
-                              color: DIVISION_COLORS[div]?.primary,
-                              border: `1px solid ${DIVISION_COLORS[div]?.primary}30`
-                            }}
-                          >
-                            {div} ({divisionCounts[div] || 0})
-                          </span>
-                        ))}
-                      </div>
+                {FLOORS.map(floor => (
+                  <div 
+                    key={floor.name} 
+                    className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50 hover:border-gray-600/50 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-semibold text-white">{floor.name}</span>
+                      <span className="text-xs text-cyan-400 font-medium bg-cyan-400/10 px-2 py-0.5 rounded-full">
+                        {floor.divisions.reduce((sum, div) => sum + (divisionCounts[div] || 0), 0)} agents
+                      </span>
                     </div>
-                  );
-                })}
+                    <div className="flex flex-wrap gap-1.5">
+                      {floor.divisions.map(div => (
+                        <span
+                          key={div}
+                          className="px-2 py-1 rounded-full text-xs font-medium"
+                          style={{ 
+                            backgroundColor: DIVISION_COLORS[div]?.primary + '20',
+                            color: DIVISION_COLORS[div]?.primary,
+                            border: `1px solid ${DIVISION_COLORS[div]?.primary}30`
+                          }}
+                        >
+                          {div} ({divisionCounts[div] || 0})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
               
               <div className="mt-6">
                 <h3 className="font-bold text-white mb-4 text-lg">📊 Quick Stats</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-gradient-to-br from-cyan-900/30 to-cyan-900/10 rounded-xl p-4 text-center border border-cyan-800/30">
-                    <span className="text-3xl font-bold text-cyan-400">{agents.length}</span>
+                    <span className="text-3xl font-bold text-cyan-400">{pixelAgents.length}</span>
                     <p className="text-xs text-gray-400 mt-1">Total Agents</p>
                   </div>
                   <div className="bg-gradient-to-br from-green-900/30 to-green-900/10 rounded-xl p-4 text-center border border-green-800/30">
-                    <span className="text-3xl font-bold text-green-400">{activeAgents.length}</span>
-                    <p className="text-xs text-gray-400 mt-1">Active</p>
+                    <span className="text-3xl font-bold text-green-400">{statusCounts.working || 0}</span>
+                    <p className="text-xs text-gray-400 mt-1">Working</p>
                   </div>
                   <div className="bg-gradient-to-br from-yellow-900/30 to-yellow-900/10 rounded-xl p-4 text-center border border-yellow-800/30">
                     <span className="text-3xl font-bold text-yellow-400">{statusCounts.thinking || 0}</span>
                     <p className="text-xs text-gray-400 mt-1">Thinking</p>
                   </div>
                   <div className="bg-gradient-to-br from-gray-800/50 to-gray-800/20 rounded-xl p-4 text-center border border-gray-700/30">
-                    <span className="text-3xl font-bold text-gray-400">{inactiveAgents.length}</span>
+                    <span className="text-3xl font-bold text-gray-400">{statusCounts.idle || 0}</span>
                     <p className="text-xs text-gray-400 mt-1">Idle</p>
                   </div>
                 </div>
               </div>
-              
-              {/* Inactive Agents Collapsible Section */}
-              {inactiveAgents.length > 0 && filterMode === 'all' && (
-                <div className="mt-6">
-                  <details className="group">
-                    <summary className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-400 hover:text-white transition-colors">
-                      <span>💤 Idle Agents ({inactiveAgents.length})</span>
-                      <span className="text-xs group-open:rotate-180 transition-transform">▼</span>
-                    </summary>
-                    <div className="mt-3 max-h-48 overflow-y-auto space-y-1">
-                      {inactiveAgents.slice(0, 20).map(agent => (
-                        <div 
-                          key={agent.id}
-                          className="flex items-center gap-2 px-2 py-1.5 bg-gray-800/30 rounded text-xs cursor-pointer hover:bg-gray-800/60 transition-colors"
-                          onClick={() => {
-                            const pixelAgent = pixelAgents.find(a => a.id === agent.id);
-                            if (pixelAgent) setSelectedAgent(pixelAgent);
-                          }}
-                        >
-                          <span>{agent.emoji}</span>
-                          <span className="text-gray-300 flex-1 truncate">{agent.name}</span>
-                          <span 
-                            className="px-1.5 py-0.5 rounded text-[10px]"
-                            style={{ 
-                              backgroundColor: DIVISION_COLORS[agent.division]?.primary + '20',
-                              color: DIVISION_COLORS[agent.division]?.primary
-                            }}
-                          >
-                            {agent.division}
-                          </span>
-                        </div>
-                      ))}
-                      {inactiveAgents.length > 20 && (
-                        <p className="text-xs text-gray-500 text-center py-1">
-                          +{inactiveAgents.length - 20} more...
-                        </p>
-                      )}
-                    </div>
-                  </details>
-                </div>
-              )}
             </div>
           )}
         </div>
