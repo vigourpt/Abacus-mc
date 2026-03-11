@@ -116,20 +116,43 @@ Mission Control provides a Python-based operational layer for autonomous task ex
 # Install Python dependencies (if not already installed)
 pip install pyyaml requests
 
-# Run Mission Control
+# Run Mission Control (basic mode)
 python run_mission_control.py
 
-# Or with custom config
-python run_mission_control.py --config config.yaml
+# With dependency-aware scheduler ✨
+python run_mission_control.py --use-scheduler
+
+# With metrics API ✨
+python run_mission_control.py --metrics-port 9090
+
+# List indexed agents ✨
+python run_mission_control.py --list-agents
+
+# Dry run
+python run_mission_control.py --dry-run
 ```
 
 Mission Control will:
-1. Connect to the OpenClaw Gateway
-2. Initialize the task runner and project memory
-3. Poll for pending tasks and execute them via agents
-4. Track task state and maintain project context
+1. Create a new **run session** for isolated tracking
+2. Connect to the OpenClaw Gateway
+3. Load **agent capabilities** from workspace/agents
+4. Poll for pending tasks with **dependency resolution**
+5. Execute tasks via agents with **metrics collection**
+6. Track task state and maintain project context
 
-See [RUNTIME.md](RUNTIME.md) for detailed operational instructions.
+See [RUNTIME.md](docs/RUNTIME.md) for detailed operational instructions.
+
+### New Features (v2) ✨
+
+| Feature | Description |
+|---------|-------------|
+| **Task Dependencies** | Define task order with `depends_on: [task_ids]` |
+| **Run Sessions** | Isolated tracking in `runs/{run_id}/` |
+| **Capability Index** | Match tasks to agents by skills |
+| **Scheduler Layer** | Dependency-aware task dispatch |
+| **Metrics API** | Observability at `http://localhost:9090/metrics` |
+
+See example tasks in `tasks/examples/` demonstrating dependency chains.
 
 ## 📊 Agent Roster
 
