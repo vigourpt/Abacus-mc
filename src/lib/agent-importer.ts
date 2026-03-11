@@ -83,6 +83,23 @@ const AGENT_EMOJI_MAP: Record<string, string> = {
   'analytics': '📈',
   'brand': '™️',
   'strategy': '♟️',
+  // Sales-related
+  'sales': '💼',
+  'account': '🤝',
+  'revenue': '💵',
+  'business': '📊',
+  'partnership': '🤝',
+  'sdr': '📞',
+  'enterprise': '🏢',
+  'customer-success': '⭐',
+  'enablement': '📚',
+  'growth': '🚀',
+  'community': '👥',
+  'influencer': '✨',
+  'email': '📧',
+  'automation': '⚡',
+  'copywriter': '✏️',
+  'performance': '🎯',
 };
 
 // Color mappings for divisions
