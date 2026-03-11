@@ -7,7 +7,7 @@ This document describes the system architecture of The Autonomous AI Startup, in
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                      AUTONOMOUS AI STARTUP                              │
-│                     Phase 2 Complete - 112+ Agents                      │
+│                     Phase 3 Complete - 112+ Agents                      │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐       │
@@ -352,6 +352,212 @@ Real workflows have ordering requirements:
 - Can't implement before designing
 - Can't deploy before testing
 
+## Phase 3: OpenClaw Integration
+
+### 8. OpenClaw Client (Enhanced)
+
+**Location:** `src/lib/openclaw-client.ts`
+
+Full-featured WebSocket client for OpenClaw gateway:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     OpenClaw Client                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────┐    ┌─────────────────┐                    │
+│  │ Connection Mgmt │    │ Authentication  │                    │
+│  │ - Auto-reconnect│    │ - Ed25519 keys  │                    │
+│  │ - Exponential   │    │ - Challenge/    │                    │
+│  │   backoff       │    │   response      │                    │
+│  │ - Ping/pong     │    │ - Token auth    │                    │
+│  └─────────────────┘    └─────────────────┘                    │
+│                                                                  │
+│  ┌─────────────────┐    ┌─────────────────┐                    │
+│  │ Message Queue   │    │ Event Emitter   │                    │
+│  │ - Offline queue │    │ - connected     │                    │
+│  │ - Retry logic   │    │ - message       │                    │
+│  │ - Max queue     │    │ - error         │                    │
+│  │   management    │    │ - reconnecting  │                    │
+│  └─────────────────┘    └─────────────────┘                    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Connection States
+```typescript
+type ConnectionState =
+  | 'disconnected'    // Initial or after disconnect
+  | 'connecting'      // Establishing WebSocket
+  | 'authenticating'  // Sending auth payload
+  | 'connected'       // Ready for messages
+  | 'reconnecting'    // Auto-reconnect in progress
+  | 'error';          // Connection failed
+```
+
+### 9. Message Router
+
+**Location:** `src/lib/message-router.ts`
+
+Routes messages between OpenClaw channels and agents:
+
+```
+Incoming Channel Message
+         │
+         ▼
+┌─────────────────────┐
+│   Message Router    │
+├─────────────────────┤
+│ 1. Parse message    │
+│ 2. Identify channel │
+│ 3. Apply filters    │
+│ 4. Match agents     │
+│ 5. Route to agents  │
+│ 6. Format response  │
+│ 7. Send to channel  │
+└─────────────────────┘
+         │
+         ▼
+Agent Response → Channel
+```
+
+#### Routing Decision
+```typescript
+interface RoutingDecision {
+  shouldProcess: boolean;
+  targetAgents: string[];
+  reason: string;
+  priority: 'high' | 'medium' | 'low';
+}
+```
+
+### 10. Channel Configuration
+
+**Location:** `src/lib/openclaw-config.ts`
+
+Manages multi-channel connectivity:
+
+| Platform | Config Options |
+|----------|----------------|
+| Slack | workspace, channel |
+| Discord | guild, channel |
+| Telegram | chatId |
+| WhatsApp | number |
+| Teams | webhookUrl |
+| Email | address |
+| Matrix | metadata |
+| Webchat | apiKey |
+
+#### Agent-Channel Mapping
+```typescript
+interface AgentChannelMapping {
+  agentSlug: string;
+  role: 'responder' | 'listener' | 'broadcaster';
+  filter?: MessageFilter;
+}
+```
+
+### 11. Analytics System
+
+**Location:** `src/lib/analytics.ts`
+
+Comprehensive system monitoring:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Analytics Dashboard                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                   System Health                          │   │
+│  │  • Database size & table count                          │   │
+│  │  • Active agents by division                            │   │
+│  │  • Connection status                                     │   │
+│  │  • Uptime tracking                                       │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                  Agent Metrics                           │   │
+│  │  • Tasks completed/failed                               │   │
+│  │  • Success rate                                          │   │
+│  │  • Average response time                                 │   │
+│  │  • Task duration                                         │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                   Task Analytics                         │   │
+│  │  • Status distribution                                   │   │
+│  │  • Priority breakdown                                    │   │
+│  │  • Bottleneck detection                                  │   │
+│  │  • Throughput (daily/weekly/monthly)                    │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 12. Caching Layer
+
+**Location:** `src/lib/cache.ts`
+
+In-memory caching with TTL:
+
+```typescript
+interface CacheConfig {
+  maxSize: number;        // Maximum cached items
+  defaultTTL: number;     // Default TTL in seconds
+  cleanupInterval: number; // Cleanup frequency
+}
+```
+
+#### Cache Usage
+- Analytics queries (30s TTL)
+- Agent metrics (60s TTL)
+- System health (10s TTL)
+- Configuration data (300s TTL)
+
+### 13. Performance Monitor
+
+**Location:** `src/lib/performance-monitor.ts`
+
+Tracks system performance:
+
+```typescript
+interface PerformanceMetrics {
+  responseTime: {
+    avg: number;
+    p50: number;
+    p95: number;
+    p99: number;
+  };
+  throughput: {
+    requestsPerSecond: number;
+    tasksPerHour: number;
+  };
+  cache: {
+    hitRate: number;
+    size: number;
+    maxSize: number;
+  };
+  errors: {
+    rate: number;
+    count: number;
+    byType: Record<string, number>;
+  };
+}
+```
+
+### 14. Database Optimizer
+
+**Location:** `src/lib/db-optimizer.ts`
+
+Database maintenance utilities:
+
+- **VACUUM** - Reclaim disk space
+- **ANALYZE** - Update query planner statistics
+- **Index management** - Create/verify indexes
+- **WAL checkpoint** - Manage write-ahead log
+- **Integrity checks** - Detect corruption
+
 ## Security Considerations
 
 - Device identity keys stored locally (not in git)
@@ -360,6 +566,9 @@ Real workflows have ordering requirements:
 - CSRF protection enabled
 - Input validation with Zod
 - Agent source URL tracking for audit
+- Ed25519 cryptographic signatures for OpenClaw
+- WSS (WebSocket Secure) for production
+- Message queue overflow protection
 
 ## Performance Considerations
 
@@ -368,3 +577,7 @@ Real workflows have ordering requirements:
 - Lazy loading of agent data
 - Efficient task priority queue
 - Import rate limiting for GitHub API
+- In-memory caching with TTL eviction
+- Database query optimization
+- Connection pooling for WebSocket
+- Automatic garbage collection for old data
