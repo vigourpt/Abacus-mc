@@ -3,14 +3,60 @@
 import { useAppStore } from '@/store';
 import { cn } from '@/lib/utils';
 
-const navItems = [
-  { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-  { id: 'agents', icon: '🤖', label: 'Agents' },
-  { id: 'tasks', icon: '📋', label: 'Tasks' },
-  { id: 'messages', icon: '💬', label: 'Messages' },
-  { id: 'hiring', icon: '👥', label: 'Hiring' },
-  { id: 'gateways', icon: '🔌', label: 'Gateways' },
-  { id: 'settings', icon: '⚙️', label: 'Settings' },
+interface NavItem {
+  id: string;
+  icon: string;
+  label: string;
+}
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    title: '',
+    items: [
+      { id: 'dashboard', icon: '📊', label: 'Overview' },
+      { id: 'agents', icon: '🤖', label: 'Agents' },
+      { id: 'visualizer', icon: '🎮', label: 'Agent World' },
+      { id: 'tasks', icon: '📋', label: 'Tasks' },
+      { id: 'chat', icon: '💬', label: 'Chat' },
+      { id: 'channels', icon: '📡', label: 'Channels' },
+      { id: 'skills', icon: '📚', label: 'Skills' },
+      { id: 'memory', icon: '🧠', label: 'Memory' },
+    ],
+  },
+  {
+    title: 'OBSERVE',
+    items: [
+      { id: 'activity', icon: '⚡', label: 'Activity' },
+      { id: 'logs', icon: '📝', label: 'Logs' },
+      { id: 'cost-tracker', icon: '💰', label: 'Cost Tracker' },
+      { id: 'nodes', icon: '🔗', label: 'Nodes' },
+      { id: 'approvals', icon: '✅', label: 'Approvals' },
+      { id: 'office', icon: '🏢', label: 'Office' },
+    ],
+  },
+  {
+    title: 'AUTOMATE',
+    items: [
+      { id: 'cron', icon: '⏰', label: 'Cron' },
+      { id: 'webhooks', icon: '🔔', label: 'Webhooks' },
+      { id: 'alerts', icon: '🚨', label: 'Alerts' },
+      { id: 'github', icon: '🐙', label: 'GitHub' },
+    ],
+  },
+  {
+    title: 'ADMIN',
+    items: [
+      { id: 'security', icon: '🔒', label: 'Security' },
+      { id: 'analytics', icon: '📈', label: 'Analytics' },
+      { id: 'gateways', icon: '🔌', label: 'Gateways' },
+      { id: 'settings', icon: '⚙️', label: 'Settings' },
+    ],
+  },
 ];
 
 export function NavRail() {
@@ -19,50 +65,91 @@ export function NavRail() {
   return (
     <nav
       className={cn(
-        'bg-gray-800 border-r border-gray-700 flex flex-col transition-all duration-200',
-        sidebarOpen ? 'w-48' : 'w-16'
+        'bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-200 h-screen overflow-y-auto',
+        sidebarOpen ? 'w-52' : 'w-16'
       )}
     >
       {/* Logo/Toggle */}
-      <div className="p-4 border-b border-gray-700">
+      <div className="p-4 border-b border-gray-800 sticky top-0 bg-gray-900 z-10">
         <button
           onClick={toggleSidebar}
-          className="flex items-center gap-3 text-white hover:text-blue-400 transition-colors w-full"
+          className="flex items-center gap-3 text-white hover:text-cyan-400 transition-colors w-full"
         >
-          <span className="text-2xl">🎯</span>
+          <span className="text-2xl">⭐</span>
           {sidebarOpen && (
-            <span className="font-semibold text-sm">AI Startup</span>
+            <div className="flex flex-col items-start">
+              <span className="font-bold text-sm">Mission</span>
+              <span className="text-xs text-gray-500">v0.0.9</span>
+            </div>
           )}
         </button>
       </div>
 
-      {/* Navigation Items */}
-      <div className="flex-1 py-4 space-y-1">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActivePanel(item.id)}
-            className={cn(
-              'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors',
-              activePanel === item.id
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+      {/* Gateway Status */}
+      {sidebarOpen && (
+        <div className="px-4 py-2 border-b border-gray-800">
+          <div className="bg-cyan-500/20 border border-cyan-500/30 rounded px-2 py-1 text-xs text-cyan-400">
+            DW Connected
+          </div>
+        </div>
+      )}
+
+      {/* Navigation Sections */}
+      <div className="flex-1 py-2">
+        {navSections.map((section, sectionIndex) => (
+          <div key={sectionIndex} className="mb-2">
+            {section.title && sidebarOpen && (
+              <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {section.title}
+              </div>
             )}
-          >
-            <span className="text-lg">{item.icon}</span>
-            {sidebarOpen && (
-              <span className="text-sm">{item.label}</span>
-            )}
-          </button>
+            {section.items.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActivePanel(item.id)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-4 py-2 text-left transition-colors',
+                  activePanel === item.id
+                    ? 'bg-cyan-500/20 text-cyan-400 border-l-2 border-cyan-400'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                )}
+              >
+                <span className="text-lg flex-shrink-0">{item.icon}</span>
+                {sidebarOpen && (
+                  <span className="text-sm truncate">{item.label}</span>
+                )}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
 
-      {/* Status */}
-      <div className="p-4 border-t border-gray-700">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+      {/* Bottom Section */}
+      <div className="border-t border-gray-800 p-2 sticky bottom-0 bg-gray-900">
+        {/* Plugin Badges */}
+        {sidebarOpen && (
+          <div className="space-y-1 mb-2">
+            <div className="flex items-center gap-2 px-2 py-1 text-xs text-gray-500">
+              <span className="bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded text-xs">xint</span>
+              <span>CLI</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 py-1 text-xs text-gray-500">
+              <span className="bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded text-xs">builderz</span>
+              <span>DEV</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Admin */}
+        <div className="flex items-center gap-2 px-2 py-2 text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">
+          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-xs font-bold text-white">
+            A
+          </div>
           {sidebarOpen && (
-            <span className="text-xs text-gray-400">System Online</span>
+            <div className="flex flex-col">
+              <span className="font-medium text-white">Admin</span>
+              <span className="text-xs text-gray-500">openclaw</span>
+            </div>
           )}
         </div>
       </div>

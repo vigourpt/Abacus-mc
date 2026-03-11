@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 [![Agents](https://img.shields.io/badge/Agents-112+-purple.svg)](#-agent-roster)
-[![Phase](https://img.shields.io/badge/Phase-2%20Complete-success.svg)](docs/PHASE_ROADMAP.md)
+[![Phase](https://img.shields.io/badge/Phase-3%20Complete-success.svg)](docs/PHASE_ROADMAP.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Instead of 51 prompts → 1 AI company with 112+ specialized agents**
@@ -23,10 +23,22 @@ The Autonomous AI Startup Architecture is a production-ready, multi-agent orches
 - **Mission Control** - Real-time agent management and task orchestration
 - **Agency Agents** - 112+ specialized AI agent personalities across 14 divisions
 - **OpenClaw** - Personal AI gateway for multi-channel connectivity
+- **Analytics Dashboard** - Comprehensive monitoring and performance tracking
 
 ## ✨ Key Features
 
-### Phase 2 Complete ✅
+### Phase 3 Complete ✅
+
+| Feature | Description |
+|---------|-------------|
+| **OpenClaw Integration** | Full bidirectional sync with WebSocket gateway |
+| **Message Routing** | Intelligent routing of messages to specialized agents |
+| **Multi-Channel Support** | Slack, Discord, Telegram, Teams, Email, and more |
+| **Analytics Dashboard** | Real-time system metrics and agent performance |
+| **Performance Optimization** | Caching layer, database optimization, query performance |
+| **Ed25519 Authentication** | Secure device identity and gateway authentication |
+
+### Phase 2 Features
 
 | Feature | Description |
 |---------|-------------|
@@ -38,7 +50,6 @@ The Autonomous AI Startup Architecture is a production-ready, multi-agent orches
 | **Task Dependencies** | Support for complex task workflows with dependencies |
 | **Workload Balancing** | Intelligent distribution of work across agents |
 | **Real-time Updates** | WebSocket-based live monitoring and events |
-| **OpenClaw Integration** | Ed25519 device identity and gateway connectivity |
 
 ## 🚀 Quick Start
 
@@ -71,6 +82,21 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) to access the dashboard.
 
+### OpenClaw Gateway Setup
+
+```bash
+# Configure OpenClaw (optional)
+# Edit .data/openclaw-config.json or set environment variables
+
+export OPENCLAW_GATEWAY_HOST=127.0.0.1
+export OPENCLAW_GATEWAY_PORT=18789
+
+# Connect via API
+curl -X POST http://localhost:3000/api/openclaw/connect
+```
+
+See [OpenClaw Integration Guide](docs/OPENCLAW_INTEGRATION.md) for detailed setup.
+
 ## 📊 Agent Roster
 
 **112+ agents** organized across **14 specialized divisions**:
@@ -98,9 +124,13 @@ See [AGENTS.md](docs/AGENTS.md) for the complete agent directory.
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, agent import, and task orchestration |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, OpenClaw integration, and monitoring |
 | [AGENTS.md](docs/AGENTS.md) | Complete agent directory organized by division |
 | [SETUP.md](docs/SETUP.md) | Installation and configuration guide |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production deployment guide |
+| [OPENCLAW_INTEGRATION.md](docs/OPENCLAW_INTEGRATION.md) | OpenClaw gateway setup and configuration |
+| [API_REFERENCE.md](docs/API_REFERENCE.md) | Complete API documentation |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Guidelines for extending the system |
 | [PHASE_ROADMAP.md](docs/PHASE_ROADMAP.md) | Feature roadmap for all phases |
 
@@ -115,6 +145,8 @@ See [AGENTS.md](docs/AGENTS.md) for the complete agent directory.
 | State | Zustand 5 |
 | Real-time | WebSocket + SSE |
 | Validation | Zod 4 |
+| Logging | Pino |
+| Caching | In-memory with TTL |
 
 ## 🏗️ Project Structure
 
@@ -123,13 +155,23 @@ autonomous-ai-startup/
 ├── src/
 │   ├── app/                    # Next.js app router
 │   │   └── api/               # REST API routes
+│   │       ├── agents/        # Agent management
+│   │       ├── tasks/         # Task management
+│   │       ├── analytics/     # System analytics
+│   │       └── openclaw/      # OpenClaw gateway
 │   ├── components/             # React components
+│   │   └── analytics/         # Analytics dashboard
 │   ├── lib/                    # Core libraries
 │   │   ├── db.ts              # SQLite database
-│   │   ├── task-planner.ts    # Enhanced task routing & collaboration
+│   │   ├── task-planner.ts    # Task routing & collaboration
 │   │   ├── agent-hiring.ts    # Dynamic agent creation
-│   │   ├── agent-importer.ts  # Import agents from agency-agents
-│   │   └── agent-sync.ts      # Workspace synchronization
+│   │   ├── agent-sync.ts      # Bidirectional agent sync
+│   │   ├── openclaw-client.ts # WebSocket gateway client
+│   │   ├── openclaw-config.ts # Gateway configuration
+│   │   ├── message-router.ts  # Channel message routing
+│   │   ├── analytics.ts       # System metrics
+│   │   ├── cache.ts           # Caching layer
+│   │   └── performance-monitor.ts # Performance tracking
 │   ├── store/                  # Zustand state management
 │   └── types/                  # TypeScript definitions
 ├── workspace/
@@ -137,9 +179,10 @@ autonomous-ai-startup/
 ├── scripts/
 │   ├── seed-agents.ts          # Initial agent setup
 │   ├── import-agents.ts        # Batch agent import
+│   ├── db-optimize.ts          # Database optimization
 │   └── import-specialized-agents.ts
 ├── docs/                       # Documentation
-└── .data/                      # Runtime data (SQLite)
+└── .data/                      # Runtime data (SQLite, config)
 ```
 
 ## 🔌 API Reference
@@ -176,13 +219,52 @@ POST /api/tasks
 GET /api/tasks/queue?agent=<agent_id>
 ```
 
+### Analytics
+
+```bash
+# System health
+GET /api/analytics/system
+
+# Agent metrics
+GET /api/analytics/agents
+
+# Task analytics
+GET /api/analytics/tasks
+
+# Performance metrics
+GET /api/analytics/performance
+```
+
+### OpenClaw
+
+```bash
+# Connection status
+GET /api/openclaw/status
+
+# Connect to gateway
+POST /api/openclaw/connect
+
+# List channels
+GET /api/openclaw/channels
+
+# Send message
+POST /api/openclaw/send
+{"channelId": "slack-general", "content": "Hello!"}
+
+# Sync agents
+POST /api/openclaw/sync
+```
+
+See [API Reference](docs/API_REFERENCE.md) for complete documentation.
+
 ## 📈 Roadmap
 
 | Phase | Status | Features |
 |-------|--------|----------|
 | **Phase 1** | ✅ Complete | Core system, 6 essential agents, dashboard UI |
 | **Phase 2** | ✅ Complete | 112+ agents, agent import system, multi-agent collaboration, task dependencies |
-| **Phase 3** | 🔮 Planned | Multi-tenant workspaces, advanced analytics, enterprise integrations |
+| **Phase 3** | ✅ Complete | OpenClaw integration, analytics dashboard, performance optimization |
+| **Phase 4** | 🔮 Planned | Multi-tenant workspaces, advanced AI models, enterprise SSO |
 
 See [PHASE_ROADMAP.md](docs/PHASE_ROADMAP.md) for details.
 
