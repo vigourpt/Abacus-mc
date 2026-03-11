@@ -21,6 +21,7 @@
 The Autonomous AI Startup Architecture is a production-ready, multi-agent orchestration platform that transforms specialized AI agents into a cohesive, autonomous startup operation. It combines the power of:
 
 - **Mission Control** - Real-time agent management and task orchestration
+- **Operational Layer** - Python-based execution loop with OpenClaw connector
 - **Agency Agents** - 112+ specialized AI agent personalities across 14 divisions
 - **OpenClaw** - Personal AI gateway for multi-channel connectivity
 - **Analytics Dashboard** - Comprehensive monitoring and performance tracking
@@ -37,6 +38,16 @@ The Autonomous AI Startup Architecture is a production-ready, multi-agent orches
 | **Analytics Dashboard** | Real-time system metrics and agent performance |
 | **Performance Optimization** | Caching layer, database optimization, query performance |
 | **Ed25519 Authentication** | Secure device identity and gateway authentication |
+
+### Operational Layer ✅
+
+| Component | Description |
+|-----------|-------------|
+| **OpenClaw Connector** | Python client for OpenClaw Gateway communication |
+| **Task Runner** | Execution loop for processing tasks via agents |
+| **Project Memory** | Persistent context and state tracking across sessions |
+| **Logging System** | Structured logging with configurable levels |
+| **Mission Control** | Main entry point orchestrating all components |
 
 ### Phase 2 Features
 
@@ -97,6 +108,29 @@ curl -X POST http://localhost:3000/api/openclaw/connect
 
 See [OpenClaw Integration Guide](docs/OPENCLAW_INTEGRATION.md) for detailed setup.
 
+### Running Mission Control (Operational Layer)
+
+Mission Control provides a Python-based operational layer for autonomous task execution:
+
+```bash
+# Install Python dependencies (if not already installed)
+pip install pyyaml requests
+
+# Run Mission Control
+python run_mission_control.py
+
+# Or with custom config
+python run_mission_control.py --config config.yaml
+```
+
+Mission Control will:
+1. Connect to the OpenClaw Gateway
+2. Initialize the task runner and project memory
+3. Poll for pending tasks and execute them via agents
+4. Track task state and maintain project context
+
+See [RUNTIME.md](RUNTIME.md) for detailed operational instructions.
+
 ## 📊 Agent Roster
 
 **112+ agents** organized across **14 specialized divisions**:
@@ -125,6 +159,7 @@ See [AGENTS.md](docs/AGENTS.md) for the complete agent directory.
 | Document | Description |
 |----------|-------------|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, OpenClaw integration, and monitoring |
+| [RUNTIME.md](RUNTIME.md) | **Operational layer guide - Mission Control, task runner** |
 | [AGENTS.md](docs/AGENTS.md) | Complete agent directory organized by division |
 | [SETUP.md](docs/SETUP.md) | Installation and configuration guide |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production deployment guide |
@@ -174,6 +209,13 @@ autonomous-ai-startup/
 │   │   └── performance-monitor.ts # Performance tracking
 │   ├── store/                  # Zustand state management
 │   └── types/                  # TypeScript definitions
+├── connectors/                 # Operational Layer - External connectors
+│   └── openclaw_client.py     # Python OpenClaw Gateway client
+├── orchestration/              # Operational Layer - Task orchestration
+│   ├── task_runner.py         # Execution loop for task processing
+│   ├── project_memory.py      # Project context & state persistence
+│   └── logger.py              # Structured logging system
+├── run_mission_control.py      # Main entry point for operational layer
 ├── workspace/
 │   └── agents/                 # 112+ agent soul.md files
 ├── scripts/

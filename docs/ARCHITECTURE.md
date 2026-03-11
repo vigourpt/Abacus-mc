@@ -581,3 +581,224 @@ Database maintenance utilities:
 - Database query optimization
 - Connection pooling for WebSocket
 - Automatic garbage collection for old data
+
+---
+
+## Operational Layer
+
+The Operational Layer provides a Python-based runtime for autonomous task execution, enabling Mission Control to orchestrate agents via the OpenClaw Gateway.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        OPERATIONAL LAYER                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   run_mission_control.py                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     Mission Control                              │  │
+│   │  • Configuration loading (YAML/env vars)                        │  │
+│   │  • Signal handling (graceful shutdown)                          │  │
+│   │  • Component initialization                                      │  │
+│   │  • Main execution loop                                          │  │
+│   └──────────────────────────┬──────────────────────────────────────┘  │
+│                              │                                          │
+│          ┌───────────────────┼───────────────────┐                     │
+│          ▼                   ▼                   ▼                     │
+│   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐             │
+│   │   OpenClaw   │   │    Task      │   │   Project    │             │
+│   │   Connector  │   │    Runner    │   │   Memory     │             │
+│   └──────────────┘   └──────────────┘   └──────────────┘             │
+│          │                   │                   │                     │
+│          └───────────────────┴───────────────────┘                     │
+│                              │                                          │
+│                              ▼                                          │
+│                    ┌──────────────────┐                                │
+│                    │     Logger       │                                │
+│                    │  (Structured)    │                                │
+│                    └──────────────────┘                                │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     OpenClaw Gateway (External)                         │
+│                      ws://127.0.0.1:18789                              │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 15. OpenClaw Connector (Python)
+
+**Location:** `connectors/openclaw_client.py`
+
+Python client for communicating with the OpenClaw Gateway:
+
+```python
+class OpenClawClient:
+    """OpenClaw Gateway client for task execution."""
+    
+    def __init__(self, api_endpoint, api_token, timeout, retry_attempts):
+        # Configuration
+        self.api_endpoint = api_endpoint
+        self.api_token = api_token
+        
+    def health_check(self) -> bool:
+        """Check if OpenClaw Gateway is reachable."""
+        
+    def send_task(self, task: dict) -> dict:
+        """Send a task to OpenClaw for agent execution."""
+        
+    def get_task_status(self, task_id: str) -> dict:
+        """Poll for task completion status."""
+```
+
+#### Features
+- HTTP/REST-based communication
+- Automatic retry with exponential backoff
+- Configurable timeout
+- Health check endpoint
+- Task submission and status polling
+
+### 16. Task Runner (Execution Loop)
+
+**Location:** `orchestration/task_runner.py`
+
+Core execution loop for processing tasks:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Task Runner Loop                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   start()                                                    │
+│       │                                                      │
+│       ▼                                                      │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │  while running:                                      │   │
+│   │      │                                               │   │
+│   │      ├── fetch_pending_tasks()                      │   │
+│   │      │       │                                       │   │
+│   │      │       └── Query tasks with status='todo'     │   │
+│   │      │                                               │   │
+│   │      ├── for task in tasks:                         │   │
+│   │      │       │                                       │   │
+│   │      │       ├── update_status('in_progress')       │   │
+│   │      │       │                                       │   │
+│   │      │       ├── execute_via_openclaw(task)         │   │
+│   │      │       │       │                               │   │
+│   │      │       │       └── Submit to OpenClaw Gateway │   │
+│   │      │       │                                       │   │
+│   │      │       ├── wait_for_completion()              │   │
+│   │      │       │                                       │   │
+│   │      │       └── update_status('done'|'failed')     │   │
+│   │      │                                               │   │
+│   │      └── sleep(poll_interval)                       │   │
+│   │                                                      │   │
+│   └─────────────────────────────────────────────────────┘   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Task States
+| State | Description |
+|-------|-------------|
+| `todo` | Task queued, waiting for execution |
+| `in_progress` | Task currently being executed |
+| `done` | Task completed successfully |
+| `failed` | Task execution failed |
+| `cancelled` | Task was cancelled |
+
+### 17. Project Memory Bridge
+
+**Location:** `orchestration/project_memory.py`
+
+Persistent context and state tracking:
+
+```python
+class ProjectMemory:
+    """Maintains project context across task executions."""
+    
+    def __init__(self, storage_path: str):
+        self.storage_path = storage_path
+        self.context = {}
+        
+    def load(self) -> dict:
+        """Load persisted project memory."""
+        
+    def save(self):
+        """Persist current memory state."""
+        
+    def update_context(self, key: str, value: Any):
+        """Update a specific context key."""
+        
+    def get_context(self, key: str) -> Any:
+        """Retrieve a context value."""
+```
+
+### 18. Logging System
+
+**Location:** `orchestration/logger.py`
+
+Structured logging with configurable output:
+
+```python
+def get_logger(log_level: str = 'INFO', console_output: bool = True) -> Logger:
+    """Create a configured logger instance."""
+```
+
+#### Log Format
+```
+2026-03-11 12:00:00,000 | INFO | mission_control | Initializing Mission Control...
+2026-03-11 12:00:01,000 | INFO | openclaw_client | Connected to OpenClaw Gateway
+2026-03-11 12:00:02,000 | INFO | task_runner | Starting task execution loop
+```
+
+### How Mission Control Orchestrates Agents
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    Mission Control Flow                                 │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. User/System creates task                                           │
+│         │                                                               │
+│         ▼                                                               │
+│  2. Task stored in SQLite (status: 'todo')                            │
+│         │                                                               │
+│         ▼                                                               │
+│  3. Task Runner polls for pending tasks                                │
+│         │                                                               │
+│         ▼                                                               │
+│  4. Task assigned to agent (via Task Planner)                          │
+│         │                                                               │
+│         ▼                                                               │
+│  5. OpenClaw Connector sends task to Gateway                           │
+│         │                                                               │
+│         ▼                                                               │
+│  6. OpenClaw routes to appropriate agent channel                       │
+│         │                                                               │
+│         ▼                                                               │
+│  7. Agent processes task, generates response                           │
+│         │                                                               │
+│         ▼                                                               │
+│  8. Response returned via OpenClaw                                     │
+│         │                                                               │
+│         ▼                                                               │
+│  9. Task Runner updates task status                                    │
+│         │                                                               │
+│         ▼                                                               │
+│  10. Project Memory updated with context                               │
+│                                                                         │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENCLAW_GATEWAY_HOST` | Gateway hostname | `localhost` |
+| `OPENCLAW_GATEWAY_PORT` | Gateway port | `8080` |
+| `OPENCLAW_GATEWAY_TOKEN` | Authentication token | (none) |
+| `MC_CONFIG` | Config file path | `config.yaml` |
+| `LOG_LEVEL` | Logging level | `INFO` |
