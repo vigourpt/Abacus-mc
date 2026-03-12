@@ -572,11 +572,139 @@ autonomous_ai_startup/
 
 ---
 
+## IDEA → STARTUP Generator
+
+The IDEA → STARTUP feature allows you to generate a complete startup project from a single idea. It creates all necessary tasks across multiple phases with proper dependencies and agent assignments.
+
+### Using the Dashboard UI
+
+1. Open the dashboard at `http://localhost:3000`
+2. Click the **"Generate Startup"** button in the hero section
+3. Enter your startup idea (at least 10 characters)
+4. Optionally provide a custom project name
+5. Click **"Generate Startup"** to create the project
+6. View progress in the **Pipeline Dashboard**
+
+### Using the API
+
+```bash
+# Generate a startup from an idea
+curl -X POST http://localhost:3000/api/startup/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idea": "An AI-powered personal finance app that helps millennials save money",
+    "projectName": "FinanceAI"
+  }'
+
+# Get pipeline configuration info
+curl http://localhost:3000/api/startup/generate
+```
+
+### Pipeline Phases
+
+The startup generator creates tasks across 4 phases:
+
+| Phase | Tasks | Agents |
+|-------|-------|--------|
+| **1. Product Definition** | Market Research, Product Spec | market-researcher, product-manager |
+| **2. Design** | UX Design, UI Design System | ux-designer, ui-designer |
+| **3. Build** | Architecture, Backend, Frontend | software-architect, developers |
+| **4. Marketing** | Brand Copy, SEO, Growth Strategy | copywriter, seo-strategist, growth-hacker |
+
+### Task Dependencies
+
+Tasks are created with proper dependencies:
+
+```
+market-research
+      │
+      └──→ product-spec
+                │
+       ┌───────┴───────┐
+       │               │
+       ↓               ↓
+  ux-design      architecture
+       │               │
+       ↓               ├──→ backend-development
+  ui-design           │
+       │               └──→ frontend-development
+       └───────┬───────┘
+               │
+       brand-messaging
+               │
+         seo-strategy
+               │
+        growth-strategy
+```
+
+### Customizing the Pipeline
+
+Edit `config/startup_pipeline.yaml` to customize:
+
+- Add/remove pipeline phases
+- Modify task templates
+- Change agent role mappings
+- Adjust estimated hours
+- Update deliverables
+
+### Example Output
+
+```json
+{
+  "success": true,
+  "project": {
+    "id": "proj_abc123",
+    "name": "FinanceAI",
+    "slug": "financeai",
+    "phases": [
+      { "id": "product-definition", "name": "Product Definition", "taskIds": ["..."] },
+      { "id": "design", "name": "Design", "taskIds": ["..."] },
+      { "id": "build", "name": "Build", "taskIds": ["..."] },
+      { "id": "marketing", "name": "Marketing", "taskIds": ["..."] }
+    ],
+    "taskCount": 10
+  }
+}
+```
+
+---
+
+## Visual Task Pipeline Dashboard
+
+The Pipeline Dashboard provides a real-time Kanban-style view of tasks flowing through the system.
+
+### Accessing the Pipeline
+
+1. Click **"Pipeline"** in the sidebar navigation (🔄 icon)
+2. Or navigate directly after generating a startup
+
+### Pipeline Stages
+
+| Stage | Status Values | Description |
+|-------|---------------|-------------|
+| 🎯 **Planner** | `inbox` | Tasks being planned and analyzed |
+| 📋 **Tasks** | `backlog`, `todo`, `blocked` | Queued tasks ready for assignment |
+| 🤖 **Agents** | `in_progress` | Tasks actively being worked on |
+| ✨ **Results** | `review`, `done` | Completed tasks and those in review |
+
+### Features
+
+- **Real-time Updates** - Tasks move automatically as status changes
+- **Filtering** - Filter by status or project tag
+- **Task Details** - Click any task for full details in sidebar
+- **Metrics** - View completion rate, active agents, blocked tasks
+- **Dependencies** - Visual indicators show task dependencies
+- **Priority Indicators** - Color-coded priority badges
+
+---
+
 ## Next Steps
 
 1. Configure your OpenClaw gateway connection
 2. Create your first project and tasks
-3. Try the scheduler with `--use-scheduler`
-4. Enable metrics with `--metrics-port 9090`
-5. Explore example tasks in `tasks/examples/`
-6. Monitor results in project outputs and run sessions
+3. **Generate a startup from an idea** using IDEA → STARTUP
+4. **Monitor progress** in the Pipeline Dashboard
+5. Try the scheduler with `--use-scheduler`
+6. Enable metrics with `--metrics-port 9090`
+7. Explore example tasks in `tasks/examples/`
+8. Monitor results in project outputs and run sessions
