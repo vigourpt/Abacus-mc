@@ -240,6 +240,73 @@ interface AppState {
 - **Device Identity:** Ed25519 key pair for secure authentication
 - **Agent Sync:** Bidirectional sync with OpenClaw configuration
 
+### 8. Visual Task Pipeline Dashboard
+
+**Location:** `src/components/panels/PipelinePanel.tsx`
+
+Real-time Kanban-style visualization of task flow through the system:
+
+#### Pipeline Stages
+```
+┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+│  🎯 Planner  │ → │  📋 Tasks    │ → │  🤖 Agents   │ → │  ✨ Results  │
+│              │   │              │   │              │   │              │
+│ Planning &   │   │ Queued &     │   │ Active       │   │ Review &     │
+│ Analysis     │   │ Backlog      │   │ Execution    │   │ Complete     │
+│              │   │              │   │              │   │              │
+│ inbox        │   │ backlog      │   │ in_progress  │   │ review       │
+│              │   │ todo         │   │              │   │ done         │
+│              │   │ blocked      │   │              │   │              │
+└──────────────┘   └──────────────┘   └──────────────┘   └──────────────┘
+```
+
+#### Features
+- **Real-time Updates:** Live task movement across stages
+- **Metrics Dashboard:** Total tasks, in-progress, completed, blocked, completion rate
+- **Filtering:** By status and project/tag
+- **Task Details:** Click any task for detailed sidebar view
+- **Agent Assignment:** Visual indication of which agent is working on each task
+- **Dependencies:** Visual indicators for task dependencies
+
+### 9. IDEA → STARTUP Generator
+
+**Location:** `src/lib/startup-generator.ts`, `src/app/api/startup/generate/route.ts`
+
+One-click startup generation from an idea:
+
+#### Pipeline Phases
+```
+Phase 1: Product Definition
+  └── product-manager, market-researcher
+
+Phase 2: Design
+  └── ux-designer, product-manager
+
+Phase 3: Build
+  └── software-architect, backend-developer, frontend-developer
+
+Phase 4: Marketing
+  └── copywriter, seo-strategist, growth-hacker
+```
+
+#### Generation Flow
+```
+User Idea Input
+      │
+      ▼
+StartupGenerator
+      │
+      ├── Generate project ID & structure
+      ├── Create project brief (brief.md)
+      ├── Parse startup_pipeline.yaml template
+      ├── Create tasks with dependencies
+      ├── Assign appropriate agents
+      └── Add tasks to queue
+            │
+            ▼
+     Pipeline Dashboard (visualize progress)
+```
+
 ## Data Flow
 
 ### Multi-Agent Collaboration Flow

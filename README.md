@@ -38,6 +38,8 @@ The Autonomous AI Startup Architecture is a production-ready, multi-agent orches
 | **Analytics Dashboard** | Real-time system metrics and agent performance |
 | **Performance Optimization** | Caching layer, database optimization, query performance |
 | **Ed25519 Authentication** | Secure device identity and gateway authentication |
+| **Visual Task Pipeline** | Real-time Kanban-style pipeline with 4 stages (Planner → Tasks → Agents → Results) |
+| **IDEA → STARTUP Generator** | One-click startup generation from an idea with automated task pipeline |
 
 ### Operational Layer ✅
 

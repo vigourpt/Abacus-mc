@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useAppStore } from '@/store';
 import { AgentCard } from './AgentCard';
 import { TaskSummary } from './TaskSummary';
@@ -29,10 +30,12 @@ import {
   HiringPanel,
   AgentVisualizerPanel,
   PipelinePanel,
+  StartupGeneratorModal,
 } from '@/components/panels';
 
 export function Dashboard() {
-  const { agents, tasks, activePanel } = useAppStore();
+  const { agents, tasks, activePanel, setActivePanel, addEvent } = useAppStore();
+  const [showStartupModal, setShowStartupModal] = useState(false);
 
   // If a specific panel is active, show that instead
   if (activePanel !== 'dashboard') {
@@ -47,10 +50,50 @@ export function Dashboard() {
     operations: agents.filter((a) => a.division === 'operations'),
   };
 
+  const handleStartupSuccess = (project: { name: string; taskCount: number }) => {
+    addEvent({
+      type: 'project_created',
+      message: `🚀 Startup "${project.name}" created with ${project.taskCount} tasks`,
+      timestamp: new Date().toISOString(),
+    });
+    // Navigate to pipeline after a short delay
+    setTimeout(() => {
+      setActivePanel('pipeline');
+    }, 1500);
+  };
+
   return (
     <div className="h-full overflow-auto p-6 space-y-6">
+      {/* IDEA → STARTUP Hero Section */}
+      <div className="bg-gradient-to-r from-cyan-900/30 via-blue-900/30 to-purple-900/30 rounded-xl border border-cyan-500/30 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className="text-4xl">🚀</span>
+            <div>
+              <h2 className="text-xl font-bold text-white">IDEA → STARTUP</h2>
+              <p className="text-gray-400 text-sm">
+                Transform your idea into a complete startup project with AI-powered automation
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowStartupModal(true)}
+            className="px-6 py-3 rounded-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/20"
+          >
+            Generate Startup
+          </button>
+        </div>
+      </div>
+
       {/* Quick Actions */}
       <QuickActions />
+
+      {/* Startup Generator Modal */}
+      <StartupGeneratorModal
+        isOpen={showStartupModal}
+        onClose={() => setShowStartupModal(false)}
+        onSuccess={handleStartupSuccess}
+      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-4 gap-4">
