@@ -28,6 +28,7 @@ import {
   SettingsPanel,
   HiringPanel,
   AgentVisualizerPanel,
+  PipelinePanel,
 } from '@/components/panels';
 
 export function Dashboard() {
@@ -167,6 +168,7 @@ function PanelContent({ panel }: { panel: string }) {
     visualizer: <AgentVisualizerPanel />,
     'agent-world': <AgentVisualizerPanel />,
     chat: <ChatPanel />,
+    pipeline: <PipelinePanel />,
   };
 
   // Standard panels (with padding and scroll)
