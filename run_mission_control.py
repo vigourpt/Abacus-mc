@@ -34,6 +34,7 @@ from orchestration.run_sessions import create_run, get_session_manager, RunStatu
 from orchestration.scheduler import Scheduler, get_scheduler
 from orchestration.metrics import get_metrics_collector
 from orchestration.capability_index import get_capability_index
+from orchestration.database import initialize_database, get_database
 from api.metrics_api import create_metrics_server
 
 
@@ -120,6 +121,13 @@ class MissionControl:
     def initialize(self):
         """Initialize all components."""
         self.logger.info("Initializing Mission Control...")
+        
+        # Initialize knowledge and reputation database
+        try:
+            tables = initialize_database()
+            self.logger.info(f"✓ Knowledge database initialized: {tables}")
+        except Exception as e:
+            self.logger.warning(f"⚠ Database initialization warning: {e}")
         
         # Create new run session
         self.run_session = create_run(config=self.config)

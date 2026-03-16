@@ -40,6 +40,8 @@ The Autonomous AI Startup Architecture is a production-ready, multi-agent orches
 | **Ed25519 Authentication** | Secure device identity and gateway authentication |
 | **Visual Task Pipeline** | Real-time Kanban-style pipeline with 4 stages (Planner → Tasks → Agents → Results) |
 | **IDEA → STARTUP Generator** | One-click startup generation from an idea with automated task pipeline |
+| **Agent Knowledge System** | Agents learn from previous projects and reuse successful patterns |
+| **Agent Reputation System** | Performance-based ranking improves task routing over time |
 
 ### Operational Layer ✅
 
@@ -50,6 +52,10 @@ The Autonomous AI Startup Architecture is a production-ready, multi-agent orches
 | **Project Memory** | Persistent context and state tracking across sessions |
 | **Logging System** | Structured logging with configurable levels |
 | **Mission Control** | Main entry point orchestrating all components |
+| **Knowledge Capture** | Extracts reusable patterns from successful task outputs |
+| **Knowledge Retrieval** | Semantic search for relevant knowledge before execution |
+| **Embedding System** | Text embeddings for knowledge search (OpenAI or TF-IDF) |
+| **Reputation Manager** | Tracks agent performance metrics and success rates |
 
 ### Phase 2 Features
 

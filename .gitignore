@@ -51,3 +51,10 @@ next-env.d.ts
 # Device Identity (sensitive)
 device-identity.json
 *.pem
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Mission Control runtime
+runs/
