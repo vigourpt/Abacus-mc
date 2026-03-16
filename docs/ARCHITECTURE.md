@@ -1133,3 +1133,328 @@ python run_mission_control.py --metrics-port 9090
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+
+
+---
+
+## Agent Knowledge & Reputation System
+
+The knowledge and reputation system enables agents to learn from past projects and improves task routing based on performance history.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    KNOWLEDGE & REPUTATION SYSTEM                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   ┌───────────────────────────────────────────────────────────────────┐ │
+│   │                    Task Runner (Enhanced)                          │ │
+│   │                                                                    │ │
+│   │  BEFORE EXECUTION:                                                 │ │
+│   │  ┌─────────────────────────────────────────────────────────────┐  │ │
+│   │  │ 1. Get task description                                     │  │ │
+│   │  │ 2. Call get_knowledge_context(task_description)             │  │ │
+│   │  │ 3. Inject retrieved knowledge into agent context            │  │ │
+│   │  └─────────────────────────────────────────────────────────────┘  │ │
+│   │                                                                    │ │
+│   │  AFTER EXECUTION:                                                  │ │
+│   │  ┌─────────────────────────────────────────────────────────────┐  │ │
+│   │  │ 4. Call store_agent_knowledge(agent, output, project)       │  │ │
+│   │  │ 5. Call update_agent_reputation(agent, success, time)       │  │ │
+│   │  └─────────────────────────────────────────────────────────────┘  │ │
+│   └───────────────────────────────────────────────────────────────────┘ │
+│                              │                                           │
+│          ┌───────────────────┼───────────────────┐                      │
+│          ▼                   ▼                   ▼                      │
+│   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐              │
+│   │  Knowledge   │   │  Embedding   │   │  Reputation  │              │
+│   │   Capture    │   │   System     │   │   Manager    │              │
+│   └──────────────┘   └──────────────┘   └──────────────┘              │
+│          │                   │                   │                      │
+│          └───────────────────┴───────────────────┘                      │
+│                              │                                           │
+│   ┌──────────────────────────┴──────────────────────────────────────┐  │
+│   │                     SQLite Database                              │  │
+│   │  ┌─────────────────────┐  ┌─────────────────────┐               │  │
+│   │  │  knowledge_entries  │  │  agent_reputation   │               │  │
+│   │  │  - id               │  │  - agent_name (PK)  │               │  │
+│   │  │  - agent_name       │  │  - tasks_completed  │               │  │
+│   │  │  - knowledge_type   │  │  - tasks_failed     │               │  │
+│   │  │  - domain           │  │  - total_exec_time  │               │  │
+│   │  │  - content          │  │  - avg_exec_time    │               │  │
+│   │  │  - embedding        │  │  - success_rate     │               │  │
+│   │  │  - project_id       │  │  - last_updated     │               │  │
+│   │  │  - created_at       │  │                     │               │  │
+│   │  └─────────────────────┘  └─────────────────────┘               │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                              │                                           │
+│   ┌──────────────────────────┴──────────────────────────────────────┐  │
+│   │                    Markdown Knowledge Files                      │  │
+│   │  knowledge/{domain}/{knowledge_type}_{id}.md                     │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Knowledge Capture Flow
+
+```
+Task Output
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│         Knowledge Capture                │
+│                                          │
+│  1. Analyze output for patterns          │
+│     └── Keyword matching                 │
+│     └── Output structure detection       │
+│                                          │
+│  2. Classify knowledge type              │
+│     └── landing_page_pattern             │
+│     └── pricing_strategy                 │
+│     └── architecture_pattern             │
+│     └── marketing_strategy               │
+│     └── coding_pattern                   │
+│     └── sales_approach                   │
+│     └── design_pattern                   │
+│     └── workflow_process                 │
+│                                          │
+│  3. Extract insights                     │
+│     └── Code blocks                      │
+│     └── JSON structures                  │
+│     └── Structured content               │
+│                                          │
+│  4. Generate embedding                   │
+│     └── OpenAI (if API key)              │
+│     └── TF-IDF fallback                  │
+│                                          │
+│  5. Store in database                    │
+│     └── SQLite entry                     │
+│     └── Markdown file                    │
+└─────────────────────────────────────────┘
+```
+
+### Knowledge Retrieval Flow
+
+```
+Task Description
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│         Knowledge Retrieval              │
+│                                          │
+│  1. Generate query embedding             │
+│                                          │
+│  2. Fetch embeddings from database       │
+│     └── Filter by domain (optional)      │
+│     └── Filter by type (optional)        │
+│                                          │
+│  3. Compute cosine similarities          │
+│                                          │
+│  4. Rank by similarity                   │
+│     └── Filter by min_similarity (0.3)   │
+│     └── Return top_k (default: 5)        │
+│                                          │
+│  5. Format context for injection         │
+│     └── Markdown formatting              │
+│     └── Truncation if needed             │
+│     └── Source attribution               │
+└─────────────────────────────────────────┘
+    │
+    ▼
+Agent Context (enhanced with prior knowledge)
+```
+
+### Reputation Scoring Algorithm
+
+```python
+def get_agent_score(agent_name: str) -> float:
+    """
+    Score components (total = 1.0):
+    - Success rate: 60% weight
+    - Experience: 20% weight (logarithmic scale)
+    - Efficiency: 20% weight (faster = better)
+    """
+    rep = get_reputation(agent_name)
+    
+    if not rep:
+        return 0.5  # Neutral for new agents
+    
+    total_tasks = rep.tasks_completed + rep.tasks_failed
+    
+    # Success component (60%)
+    success_component = rep.success_rate * 0.6
+    
+    # Experience component (20%) - log scale
+    experience_component = min(1.0, log(total_tasks + 1) / 5) * 0.2
+    
+    # Efficiency component (20%) - 60s baseline
+    if rep.average_execution_time > 0:
+        efficiency = min(1.0, 60 / rep.average_execution_time)
+    else:
+        efficiency = 0.5
+    efficiency_component = efficiency * 0.2
+    
+    return success_component + experience_component + efficiency_component
+```
+
+### Reputation-Enhanced Agent Selection
+
+```
+Task
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│     Capability Index (Enhanced)          │
+│                                          │
+│  1. Get base capability matches          │
+│     └── Division matching                │
+│     └── Keyword overlap                  │
+│     └── Technical skill matching         │
+│                                          │
+│  2. For each match, get reputation       │
+│     └── Fetch from agent_reputation      │
+│     └── Calculate score (0-1)            │
+│                                          │
+│  3. Combine scores                       │
+│     └── capability_score * 0.7           │
+│     └── reputation_score * 0.3           │
+│                                          │
+│  4. Sort by combined score               │
+│                                          │
+│  5. Return ranked agents                 │
+└─────────────────────────────────────────┘
+```
+
+### Module Structure
+
+```
+orchestration/
+├── database.py           # SQLite manager for knowledge & reputation
+│   ├── DatabaseManager   # Connection pooling, CRUD operations
+│   ├── KnowledgeEntry    # Knowledge data class
+│   └── AgentReputation   # Reputation data class
+│
+├── embeddings.py         # Text embedding system
+│   ├── OpenAIEmbeddings  # OpenAI provider
+│   ├── SimpleTFIDFEmbeddings  # Fallback provider
+│   └── EmbeddingSystem   # Provider selection, similarity search
+│
+├── knowledge_capture.py  # Knowledge extraction
+│   ├── KNOWLEDGE_PATTERNS  # Pattern definitions
+│   ├── KnowledgeCapture  # Main capture class
+│   └── store_agent_knowledge()  # Convenience function
+│
+├── knowledge_retrieval.py  # Knowledge search
+│   ├── KnowledgeRetrieval  # Search and formatting
+│   ├── retrieve_relevant_knowledge()  # Convenience function
+│   └── get_knowledge_context()  # For task injection
+│
+├── reputation.py         # Performance tracking
+│   ├── ReputationManager  # Scoring and ranking
+│   ├── update_agent_reputation()  # After task completion
+│   └── rank_agents_by_reputation()  # For selection
+│
+└── capability_index.py   # Enhanced with reputation
+    ├── match_task_with_reputation()  # Combined matching
+    └── select_best_agent()  # Single best selection
+```
+
+### API Endpoints
+
+```
+/api/analytics/agent-performance (GET)
+    │
+    └── Returns:
+        ├── totalAgents
+        ├── totalTasksCompleted
+        ├── totalTasksFailed
+        ├── overallSuccessRate
+        ├── averageExecutionTime
+        ├── topPerformers[]
+        │   ├── agent_name
+        │   ├── success_rate
+        │   └── tasks_completed
+        ├── recentlyActive[]
+        └── performanceByDivision{}
+```
+
+### Data Persistence
+
+```
+.data/
+└── mission_control.db     # SQLite database (WAL mode)
+    ├── knowledge_entries  # Captured knowledge
+    └── agent_reputation   # Performance metrics
+
+knowledge/
+├── README.md
+├── marketing/
+│   └── landing_page_pattern_*.md
+├── product/
+│   └── pricing_strategy_*.md
+├── engineering/
+│   └── architecture_pattern_*.md
+├── sales/
+├── design/
+└── operations/
+```
+
+### Configuration
+
+```yaml
+# config.yaml
+
+knowledge:
+  enabled: true
+  min_confidence: 0.3
+  max_context_entries: 5
+  knowledge_dir: knowledge
+
+embeddings:
+  provider: auto          # auto, openai, tfidf
+  openai_model: text-embedding-3-small
+  tfidf_dimension: 256
+
+reputation:
+  enabled: true
+  reputation_weight: 0.3  # vs capability
+  min_tasks_threshold: 3  # before affecting ranking
+```
+
+### Learning Workflow Example
+
+```
+Project 1: Build Landing Page
+    │
+    ├── Task executes successfully
+    │
+    ├── Knowledge Capture detects:
+    │   └── landing_page_pattern (confidence: 0.7)
+    │
+    ├── Extracts insights:
+    │   └── Hero section structure
+    │   └── CTA placement patterns
+    │
+    ├── Generates embedding
+    │
+    └── Stores in knowledge_entries + knowledge/marketing/
+
+    ...6 months later...
+
+Project 2: Build Marketing Website
+    │
+    ├── Task planner receives task
+    │
+    ├── Knowledge Retrieval:
+    │   └── Query: "build marketing website landing page"
+    │   └── Finds: landing_page_pattern (similarity: 0.85)
+    │
+    ├── Injects into context:
+    │   └── "Based on previous projects, successful
+    │        landing pages use: [hero section pattern]..."
+    │
+    └── Agent executes with enhanced context
+```

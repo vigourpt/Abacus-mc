@@ -399,6 +399,114 @@ class CapabilityIndex:
         }
 
 
+    def match_task_with_reputation(
+        self,
+        task: Dict[str, Any],
+        limit: int = 5,
+        min_score: float = 0.1,
+        reputation_weight: float = 0.3
+    ) -> List[CapabilityMatch]:
+        """Match a task to agents using both capability and reputation scoring.
+        
+        This enhanced method combines capability matching with reputation data
+        to prefer agents with better track records.
+        
+        Args:
+            task: Task dictionary with description, context, etc.
+            limit: Maximum number of matches to return
+            min_score: Minimum score to include in results
+            reputation_weight: Weight given to reputation (0-1)
+            
+        Returns:
+            List of CapabilityMatch objects, ranked by combined score
+        """
+        # Import here to avoid circular imports
+        from .reputation import get_reputation_manager
+        
+        self.load_agents()
+        
+        # Get base capability matches
+        base_matches = self.match_task_to_agents(task, limit=limit * 2, min_score=0.05)
+        
+        if not base_matches:
+            return []
+        
+        # Get reputation manager
+        rep_manager = get_reputation_manager()
+        
+        # Combine capability score with reputation score
+        enhanced_matches = []
+        for match in base_matches:
+            cap_score = match.score
+            rep_score = rep_manager.get_agent_score(match.agent_id)
+            
+            # Weighted combination
+            cap_weight = 1.0 - reputation_weight
+            combined_score = (cap_score * cap_weight) + (rep_score * reputation_weight)
+            
+            # Get reputation data for reason
+            rep = rep_manager.get_reputation(match.agent_id)
+            rep_reason = ""
+            if rep and rep.tasks_completed > 0:
+                rep_reason = f"; reputation: {rep.success_rate:.0%} success ({rep.tasks_completed} tasks)"
+            
+            enhanced_matches.append(CapabilityMatch(
+                agent_id=match.agent_id,
+                agent_name=match.agent_name,
+                score=combined_score,
+                matched_capabilities=match.matched_capabilities,
+                reason=match.reason + rep_reason
+            ))
+        
+        # Filter and sort
+        enhanced_matches = [m for m in enhanced_matches if m.score >= min_score]
+        enhanced_matches.sort(key=lambda m: m.score, reverse=True)
+        
+        return enhanced_matches[:limit]
+    
+    def select_best_agent(
+        self,
+        task: Dict[str, Any],
+        use_reputation: bool = True
+    ) -> Optional[CapabilityMatch]:
+        """Select the single best agent for a task.
+        
+        Args:
+            task: Task dictionary
+            use_reputation: Whether to incorporate reputation scoring
+            
+        Returns:
+            Best matching agent or None if no suitable agent found
+        """
+        if use_reputation:
+            matches = self.match_task_with_reputation(task, limit=1)
+        else:
+            matches = self.match_task_to_agents(task, limit=1)
+        
+        return matches[0] if matches else None
+    
+    def get_agents_ranked_by_reputation(
+        self,
+        agent_ids: List[str] = None
+    ) -> List[Tuple[str, float]]:
+        """Get agents ranked by their reputation scores.
+        
+        Args:
+            agent_ids: Optional list of agent IDs to rank. If None, ranks all.
+            
+        Returns:
+            List of (agent_id, reputation_score) tuples
+        """
+        from .reputation import rank_agents_by_reputation
+        
+        self.load_agents()
+        
+        if agent_ids is None:
+            agent_ids = list(self._agents.keys())
+        
+        return rank_agents_by_reputation(agent_ids)
+
+
 # Singleton instance
 _capability_index: Optional[CapabilityIndex] = None
 
@@ -414,3 +522,22 @@ def get_capability_index() -> CapabilityIndex:
 def match_task_to_agents(task: Dict[str, Any], limit: int = 5) -> List[CapabilityMatch]:
     """Convenience function to match task to agents."""
     return get_capability_index().match_task_to_agents(task, limit)
+
+
+def match_task_with_reputation(
+    task: Dict[str, Any],
+    limit: int = 5,
+    reputation_weight: float = 0.3
+) -> List[CapabilityMatch]:
+    """Convenience function to match task to agents with reputation scoring."""
+    return get_capability_index().match_task_with_reputation(
+        task, limit=limit, reputation_weight=reputation_weight
+    )
+
+
+def select_best_agent(
+    task: Dict[str, Any],
+    use_reputation: bool = True
+) -> Optional[CapabilityMatch]:
+    """Convenience function to select the best agent for a task."""
+    return get_capability_index().select_best_agent(task, use_reputation)

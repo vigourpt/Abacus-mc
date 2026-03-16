@@ -16,7 +16,15 @@ from enum import Enum
 
 from .logger import get_logger
 from .project_memory import ProjectMemory, write_output, append_log
-from ..connectors.openclaw_client import OpenClawClient, AgentResult, AgentStatus
+from .knowledge_capture import store_agent_knowledge
+from .knowledge_retrieval import get_knowledge_context
+from .reputation import update_agent_reputation
+
+# Use try/except to handle both package and direct execution contexts
+try:
+    from connectors.openclaw_client import OpenClawClient, AgentResult, AgentStatus
+except ImportError:
+    from ..connectors.openclaw_client import OpenClawClient, AgentResult, AgentStatus
 
 
 class TaskState(Enum):
@@ -199,14 +207,32 @@ class TaskRunner:
         # Move to running
         self.state_manager.move_task(task.task_id, TaskState.RUNNING)
         
+        # Track execution time for reputation scoring
+        start_time = time.time()
+        
         try:
+            # Inject knowledge context from previous projects
+            enhanced_context = dict(task.context) if task.context else {}
+            try:
+                knowledge_ctx = get_knowledge_context(task.description)
+                if knowledge_ctx.get('knowledge'):
+                    enhanced_context['prior_knowledge'] = knowledge_ctx['knowledge']
+                    self.logger.info(
+                        f"Injected {knowledge_ctx.get('knowledge_count', 0)} knowledge entries",
+                        task_id=task.task_id
+                    )
+            except Exception as ke:
+                self.logger.warning(f"Failed to retrieve knowledge context: {ke}")
+            
             # Execute via OpenClaw
             result = self.client.run_agent(
                 agent_name=task.agent,
                 task=task.description,
-                context=task.context,
+                context=enhanced_context,
                 task_id=task.task_id
             )
+            
+            execution_time = time.time() - start_time
             
             self.logger.agent_execution(
                 task.task_id, 
@@ -223,14 +249,42 @@ class TaskRunner:
                 write_output(task.project, task.agent, task.task_id, result.output)
                 append_log(task.project, f"Task {task.task_id} completed by {task.agent}")
                 
+                # Update agent reputation (success)
+                try:
+                    update_agent_reputation(task.agent, success=True, execution_time=execution_time)
+                except Exception as re:
+                    self.logger.warning(f"Failed to update reputation: {re}")
+                
+                # Capture knowledge from successful output
+                try:
+                    knowledge_entries = store_agent_knowledge(
+                        agent_name=task.agent,
+                        task_output=result.output,
+                        project_id=task.project
+                    )
+                    if knowledge_entries:
+                        self.logger.info(
+                            f"Captured {len(knowledge_entries)} knowledge entries from task",
+                            task_id=task.task_id
+                        )
+                except Exception as ke:
+                    self.logger.warning(f"Failed to capture knowledge: {ke}")
+                
                 self.state_manager.move_task(task.task_id, TaskState.COMPLETED)
                 self.logger.task_complete(task.task_id, True, result.output)
             else:
                 raise Exception(result.error or "Agent execution failed")
                 
         except Exception as e:
+            execution_time = time.time() - start_time
             task.error = str(e)
             task.retries += 1
+            
+            # Update agent reputation (failure)
+            try:
+                update_agent_reputation(task.agent, success=False, execution_time=execution_time)
+            except Exception as re:
+                self.logger.warning(f"Failed to update reputation: {re}")
             
             if task.retries < task.max_retries:
                 # Move back to backlog for retry

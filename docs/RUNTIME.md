@@ -698,13 +698,200 @@ The Pipeline Dashboard provides a real-time Kanban-style view of tasks flowing t
 
 ---
 
+## Agent Knowledge System
+
+The knowledge system allows agents to learn from previous projects and reuse successful patterns.
+
+### How It Works
+
+1. **Capture**: After successful task completion, the system analyzes output for reusable patterns
+2. **Classification**: Knowledge is classified by type (landing pages, pricing, architecture, etc.)
+3. **Embedding**: Text embeddings enable semantic search (uses OpenAI if available, falls back to TF-IDF)
+4. **Storage**: Knowledge is stored in SQLite with markdown backups in `knowledge/`
+5. **Retrieval**: Before task execution, relevant knowledge is injected into agent context
+
+### Knowledge Types
+
+| Type | Domain | Example |
+|------|--------|---------|
+| `landing_page_pattern` | marketing | Hero section structures, CTA patterns |
+| `pricing_strategy` | product | Tier configurations, pricing psychology |
+| `architecture_pattern` | engineering | System designs, tech stack decisions |
+| `marketing_strategy` | marketing | Campaign approaches, content strategies |
+| `coding_pattern` | engineering | Reusable code, implementation patterns |
+| `sales_approach` | sales | Pitch scripts, objection handling |
+| `design_pattern` | design | UI/UX patterns, visual guidelines |
+| `workflow_process` | operations | Business processes, automation flows |
+
+### Using the Knowledge API
+
+```python
+from orchestration import (
+    store_agent_knowledge,
+    retrieve_relevant_knowledge,
+    get_knowledge_context
+)
+
+# Store knowledge (automatic after task completion)
+entries = store_agent_knowledge(
+    agent_name='developer',
+    task_output='...',
+    project_id='my-project'
+)
+
+# Retrieve relevant knowledge
+matches = retrieve_relevant_knowledge(
+    'Build a landing page with pricing',
+    top_k=5
+)
+for entry, similarity in matches:
+    print(f"{entry.knowledge_type}: {similarity:.2%}")
+
+# Get formatted context for injection
+context = get_knowledge_context('Build a landing page')
+print(context['knowledge'])  # Formatted text
+```
+
+### Configuration
+
+In `config.yaml`:
+
+```yaml
+knowledge:
+  enabled: true
+  min_confidence: 0.3        # Detection threshold
+  max_context_entries: 5     # Max entries per task
+  knowledge_dir: knowledge   # Markdown storage
+
+embeddings:
+  provider: auto             # auto, openai, tfidf
+  openai_model: text-embedding-3-small
+  tfidf_dimension: 256       # Fallback dimension
+```
+
+Set `OPENAI_API_KEY` for high-quality semantic search.
+
+### Knowledge Directory
+
+```
+knowledge/
+├── README.md
+├── marketing/
+│   └── landing_page_pattern_*.md
+├── product/
+│   └── pricing_strategy_*.md
+├── engineering/
+│   └── architecture_pattern_*.md
+├── sales/
+├── design/
+└── operations/
+```
+
+---
+
+## Agent Reputation System
+
+The reputation system tracks agent performance and uses it for intelligent routing.
+
+### How It Works
+
+1. **Tracking**: After each task, success/failure and execution time are recorded
+2. **Scoring**: Agents receive a reputation score (0-1) based on:
+   - Success rate (60% weight)
+   - Experience/task count (20% weight)
+   - Efficiency/execution time (20% weight)
+3. **Routing**: When selecting agents, reputation is combined with capability matching
+
+### Reputation Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `tasks_completed` | Total successful tasks |
+| `tasks_failed` | Total failed tasks |
+| `success_rate` | Completed / Total |
+| `average_execution_time` | Mean task duration |
+
+### Using the Reputation API
+
+```python
+from orchestration import (
+    update_agent_reputation,
+    get_agent_score,
+    rank_agents_by_reputation,
+    get_reputation_manager
+)
+
+# Update after task (automatic via task_runner)
+update_agent_reputation('developer', success=True, execution_time=45.2)
+
+# Get agent score (0-1)
+score = get_agent_score('developer')
+print(f"Developer score: {score:.2f}")
+
+# Rank multiple agents
+rankings = rank_agents_by_reputation(['developer', 'marketing', 'sales'])
+for agent, score in rankings:
+    print(f"{agent}: {score:.2f}")
+
+# Get summary
+manager = get_reputation_manager()
+summary = manager.get_summary()
+print(f"Top performer: {summary['top_performers'][0]['agent']}")
+```
+
+### Reputation-Based Agent Selection
+
+```python
+from orchestration import match_task_with_reputation, select_best_agent
+
+# Match with reputation weighting
+matches = match_task_with_reputation(
+    task={'description': 'Build API endpoint'},
+    limit=5,
+    reputation_weight=0.3  # 30% reputation, 70% capability
+)
+
+# Select single best agent
+best = select_best_agent(task, use_reputation=True)
+print(f"Best agent: {best.agent_name} ({best.score:.2f})")
+```
+
+### Analytics API
+
+```bash
+# Get agent performance data
+curl http://localhost:3000/api/analytics/agent-performance
+
+# Response includes:
+# - totalAgents, totalTasksCompleted, totalTasksFailed
+# - overallSuccessRate, averageExecutionTime
+# - topPerformers (agents with 3+ tasks, sorted by success rate)
+# - recentlyActive (sorted by last_updated)
+# - performanceByDivision
+```
+
+### Configuration
+
+In `config.yaml`:
+
+```yaml
+reputation:
+  enabled: true
+  reputation_weight: 0.3    # Weight vs capability (0-1)
+  min_tasks_threshold: 3    # Min tasks before affecting ranking
+```
+
+---
+
 ## Next Steps
 
 1. Configure your OpenClaw gateway connection
 2. Create your first project and tasks
 3. **Generate a startup from an idea** using IDEA → STARTUP
 4. **Monitor progress** in the Pipeline Dashboard
-5. Try the scheduler with `--use-scheduler`
-6. Enable metrics with `--metrics-port 9090`
-7. Explore example tasks in `tasks/examples/`
-8. Monitor results in project outputs and run sessions
+5. **Let agents learn** - Knowledge is captured automatically
+6. **Watch reputation build** - Check `/api/analytics/agent-performance`
+7. Try the scheduler with `--use-scheduler`
+8. Enable metrics with `--metrics-port 9090`
+9. Explore example tasks in `tasks/examples/`
+10. Monitor results in project outputs and run sessions
