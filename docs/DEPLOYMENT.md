@@ -92,109 +92,169 @@ pnpm perf:report
 
 ## Docker Deployment
 
-### Dockerfile
+The project provides a multi-service Docker setup with separate containers for the Next.js UI and the Python orchestration layer.
 
-```dockerfile
-# Build stage
-FROM node:20-alpine AS builder
+### Architecture
 
-WORKDIR /app
-
-# Install dependencies
-COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
-
-# Copy source and build
-COPY . .
-RUN pnpm build
-
-# Production stage
-FROM node:20-alpine AS runner
-
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-# Copy built files
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/workspace ./workspace
-
-# Set permissions
-RUN mkdir -p .data && chown nextjs:nodejs .data
-USER nextjs
-
-EXPOSE 3000
-ENV PORT 3000
-
-CMD ["node", "server.js"]
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Docker Compose                         │
+│                                                          │
+│  ┌──────────────────────┐  ┌──────────────────────────┐ │
+│  │  mission-control-ui   │  │     orchestration         │ │
+│  │  (Dockerfile.nextjs)  │  │  (Dockerfile.python)      │ │
+│  │                       │  │                            │ │
+│  │  Next.js 16           │  │  Python 3.11               │ │
+│  │  Port: 3000           │──│  Port: 9090 (metrics)      │ │
+│  │                       │  │                            │ │
+│  │  Volumes:             │  │  Volumes:                  │ │
+│  │  - db-data            │  │  - db-data                 │ │
+│  │  - workspace-data     │  │  - knowledge-data          │ │
+│  │                       │  │  - projects / tasks / runs │ │
+│  └──────────────────────┘  └──────────────────────────┘ │
+│                                                          │
+│  Network: mc-internal (bridge)                           │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### Docker Compose
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_PATH=/app/.data/ai-startup.db
-    volumes:
-      - app-data:/app/.data
-      - ./workspace:/app/workspace:ro
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  openclaw-gateway:
-    image: openclaw/gateway:latest
-    ports:
-      - "18789:18789"
-    environment:
-      - OPENCLAW_PORT=18789
-    volumes:
-      - openclaw-data:/data
-    restart: unless-stopped
-
-volumes:
-  app-data:
-  openclaw-data:
-```
-
-### Build and Run
+### Quick Start
 
 ```bash
-# Build image
-docker build -t ai-startup:latest .
+# 1. Configure environment
+cp .env.example .env
+# Edit .env with your API keys, passwords, etc.
 
-# Run container
-docker run -d \
-  --name ai-startup \
-  -p 3000:3000 \
-  -v ai-startup-data:/app/.data \
-  ai-startup:latest
+# 2. Build all images
+docker-compose build
 
-# Or use Docker Compose
+# 3. Start services in background
 docker-compose up -d
 
-# View logs
-docker-compose logs -f
+# 4. Verify services are healthy
+docker-compose ps
 
-# Stop services
+# 5. Follow logs
+docker-compose logs -f
+```
+
+- **Mission Control UI** → [http://localhost:3000](http://localhost:3000)
+- **Metrics API** → [http://localhost:9090/metrics](http://localhost:9090/metrics)
+- **Health endpoint** → [http://localhost:9090/health](http://localhost:9090/health)
+
+### Docker Files
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile.nextjs` | Multi-stage build for the Next.js frontend (3 stages: deps → builder → production) |
+| `Dockerfile.python` | Multi-stage build for the Python orchestration layer (2 stages: builder → production) |
+| `Dockerfile` | Legacy single-container build (kept for backwards compatibility) |
+| `docker-compose.yml` | Multi-service orchestration with volumes and networking |
+| `.dockerignore` | Optimizes build context by excluding unnecessary files |
+| `requirements.txt` | Python dependencies for the orchestration layer |
+
+### Services
+
+#### mission-control-ui (Next.js)
+
+- Built from `Dockerfile.nextjs`
+- Runs as non-root user `nextjs` (UID 1001)
+- Exposes port 3000
+- Depends on the orchestration service being healthy
+- Health check: `GET /api/agents`
+
+#### orchestration (Python)
+
+- Built from `Dockerfile.python`
+- Runs as non-root user `orchestrator` (UID 1001)
+- Exposes port 9090 for the metrics API
+- Starts with `--use-scheduler --metrics-port 9090`
+- Health check: `GET /health`
+
+### Volume Management
+
+Named volumes persist data across container restarts:
+
+| Volume | Mount Point | Purpose |
+|--------|-------------|---------|
+| `db-data` | `/app/.data` | SQLite databases (shared between services) |
+| `workspace-data` | `/app/workspace` | Agent soul.md files |
+| `knowledge-data` | `/app/knowledge` | Knowledge capture data |
+| `projects-data` | `/app/projects` | Project memory |
+| `tasks-data` | `/app/tasks` | Task definitions |
+| `runs-data` | `/app/runs` | Run session artifacts |
+
+```bash
+# List volumes
+docker volume ls | grep mc
+
+# Inspect a volume
+docker volume inspect autonomous_ai_startup_db-data
+
+# Backup a volume
+docker run --rm -v autonomous_ai_startup_db-data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/db-backup.tar.gz /data
+
+# Remove all volumes (CAUTION: destroys data)
+docker-compose down -v
+```
+
+### Environment Variables
+
+All environment variables are configured in `.env` (copied from `.env.example`):
+
+```bash
+# Required
+AUTH_USER=admin
+AUTH_PASS=secure-password
+
+# Optional - AI features
+OPENAI_API_KEY=sk-your-key      # For knowledge embeddings
+OPENCLAW_GATEWAY_TOKEN=token     # For OpenClaw integration
+
+# Logging
+LOG_LEVEL=info                   # debug, info, warn, error
+```
+
+### Common Commands
+
+```bash
+# Build without cache
+docker-compose build --no-cache
+
+# Start a single service
+docker-compose up -d mission-control-ui
+
+# Restart a service
+docker-compose restart orchestration
+
+# View service logs
+docker-compose logs -f orchestration
+
+# Execute command in running container
+docker-compose exec mission-control-ui sh
+docker-compose exec orchestration python -c "print('hello')"
+
+# Stop and remove containers (keep volumes)
 docker-compose down
+
+# Stop and remove everything including volumes
+docker-compose down -v
+
+# Check resource usage
+docker stats mc-ui mc-orchestration
+```
+
+### Building Individual Images
+
+```bash
+# Build Next.js image only
+docker build -t mc-ui:latest -f Dockerfile.nextjs .
+
+# Build Python image only
+docker build -t mc-orchestration:latest -f Dockerfile.python .
+
+# Run standalone container
+docker run -d --name mc-ui -p 3000:3000 mc-ui:latest
 ```
 
 ## Cloud Platforms

@@ -101,6 +101,36 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) to access the dashboard.
 
+### 🐳 Docker Deployment
+
+The fastest way to get the full stack running:
+
+```bash
+# Clone the repository
+git clone https://github.com/vigourpt/The-Autonomous-AI-Startup-Architecture.git
+cd The-Autonomous-AI-Startup-Architecture
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your settings (API keys, passwords, etc.)
+
+# Build and start all services
+docker-compose build
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop all services
+docker-compose down
+```
+
+This starts two services:
+- **Mission Control UI** (Next.js) → [http://localhost:3000](http://localhost:3000)
+- **Orchestration Layer** (Python) → [http://localhost:9090](http://localhost:9090) (metrics API)
+
+Data is persisted in Docker named volumes. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for advanced configuration.
+
 ### OpenClaw Gateway Setup
 
 ```bash
