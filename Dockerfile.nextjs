@@ -1,0 +1,83 @@
+# ============================================
+# Dockerfile.nextjs - Next.js Mission Control UI
+# Multi-stage build for production optimization
+# ============================================
+
+# ---- Stage 1: Dependencies ----
+FROM node:20-alpine AS deps
+
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy dependency manifests
+COPY package.json pnpm-lock.yaml* ./
+
+# Install dependencies (cached layer)
+RUN pnpm install --frozen-lockfile
+
+# ---- Stage 2: Builder ----
+FROM node:20-alpine AS builder
+
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy deps from previous stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json pnpm-lock.yaml* ./
+
+# Copy source code
+COPY src/ ./src/
+COPY public/ ./public/
+COPY workspace/ ./workspace/
+COPY scripts/ ./scripts/
+COPY next.config.ts ./
+COPY tsconfig.json ./
+COPY tailwind.config.ts ./
+COPY postcss.config.js ./
+
+# Build the Next.js application
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm build
+
+# ---- Stage 3: Production ----
+FROM node:20-alpine AS production
+
+# Security: run as non-root user
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy only what's needed for production
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/workspace ./workspace
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/scripts ./scripts
+
+# Create data directory with correct ownership
+RUN mkdir -p .data && chown -R nextjs:nodejs .data
+RUN chown -R nextjs:nodejs /app
+
+# Environment
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV DATABASE_PATH=.data/startup.db
+
+EXPOSE 3000
+
+USER nextjs
+
+CMD ["pnpm", "start"]
