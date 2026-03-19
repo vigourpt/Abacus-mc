@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { generateId } from '@/lib/utils';
-import { getWebSocketClient } from '@/lib/websocket';
 import type { GatewayConnection } from '@/types';
 
 interface GatewayRow {
@@ -28,20 +27,11 @@ export async function GET() {
 
     const gateways = rows.map(rowToGateway);
 
-    // Add current connection status
-    const wsClient = getWebSocketClient();
-    const currentConnection = wsClient.getConnection();
-
-    return NextResponse.json({
-      gateways,
-      currentConnection,
-    });
+    // Return as array for easy consumption by frontend
+    return NextResponse.json(gateways);
   } catch (error) {
     console.error('Failed to fetch gateways:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch gateways' },
-      { status: 500 }
-    );
+    return NextResponse.json([], { status: 200 });
   }
 }
 

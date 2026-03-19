@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface SecurityEvent {
   id: string;
@@ -12,57 +12,45 @@ interface SecurityEvent {
   resolved: boolean;
 }
 
-interface AuditEntry {
-  id: string;
-  action: string;
-  user: string;
-  resource: string;
-  timestamp: string;
-  ip: string;
-}
-
 export function SecurityPanel() {
   const [events, setEvents] = useState<SecurityEvent[]>([]);
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
-  const [securityScore, setSecurityScore] = useState(87);
+  const [loading, setLoading] = useState(true);
+  const [healthStatus, setHealthStatus] = useState<any>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      // Fetch security-related activity
+      const actRes = await fetch('/api/activity?limit=20&type=security');
+      if (actRes.ok) {
+        const data = await actRes.json();
+        const mapped = (Array.isArray(data) ? data : []).map((entry: any) => ({
+          id: entry.id,
+          type: entry.metadata?.type || 'access',
+          severity: entry.metadata?.severity || 'low',
+          message: entry.message || '',
+          details: entry.metadata?.details || '',
+          timestamp: entry.createdAt || new Date().toISOString(),
+          resolved: entry.metadata?.resolved || false,
+        }));
+        setEvents(mapped);
+      }
+
+      // Fetch system health
+      const healthRes = await fetch('/api/system/health');
+      if (healthRes.ok) {
+        const health = await healthRes.json();
+        setHealthStatus(health);
+      }
+    } catch (err) {
+      console.error('Failed to fetch security data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    setEvents([
-      {
-        id: '1',
-        type: 'scan',
-        severity: 'low',
-        message: 'Skill security scan complete',
-        details: 'No issues found in 12 installed skills',
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
-        resolved: true,
-      },
-      {
-        id: '2',
-        type: 'auth',
-        severity: 'medium',
-        message: 'Failed login attempts detected',
-        details: '3 failed attempts from IP 192.168.1.100',
-        timestamp: new Date(Date.now() - 7200000).toISOString(),
-        resolved: false,
-      },
-      {
-        id: '3',
-        type: 'access',
-        severity: 'high',
-        message: 'Unusual API access pattern',
-        details: 'Agent "test-agent" made 500 requests in 1 minute',
-        timestamp: new Date(Date.now() - 86400000).toISOString(),
-        resolved: true,
-      },
-    ]);
-
-    setAuditLog([
-      { id: '1', action: 'agent.create', user: 'admin', resource: 'marketing-agent', timestamp: new Date().toISOString(), ip: '127.0.0.1' },
-      { id: '2', action: 'config.update', user: 'system', resource: 'rate-limits', timestamp: new Date(Date.now() - 1800000).toISOString(), ip: 'system' },
-      { id: '3', action: 'skill.install', user: 'admin', resource: 'web-scraper', timestamp: new Date(Date.now() - 3600000).toISOString(), ip: '127.0.0.1' },
-    ]);
-  }, []);
+    fetchData();
+  }, [fetchData]);
 
   const severityColors: Record<string, string> = {
     low: 'text-blue-400 bg-blue-400/10',
@@ -71,113 +59,102 @@ export function SecurityPanel() {
     critical: 'text-red-400 bg-red-400/10',
   };
 
-  const typeIcons: Record<string, string> = {
-    auth: '🔐',
-    access: '🛡️',
-    scan: '🔍',
-    config: '⚙️',
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">Security</h2>
-        <button className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
-          Run Security Scan
-        </button>
-      </div>
+      <h2 className="text-xl font-semibold text-white">Security & Audit</h2>
 
       {/* Security Score */}
-      <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm text-gray-500 mb-1">Security Score</h3>
-            <div className="flex items-center gap-4">
-              <span className={`text-4xl font-bold ${
-                securityScore >= 80 ? 'text-green-400' : 
-                securityScore >= 60 ? 'text-yellow-400' : 'text-red-400'
-              }`}>
-                {securityScore}
-              </span>
-              <span className="text-gray-400">/100</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4 text-center">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
+          <p className="text-3xl font-bold text-green-400">
+            {healthStatus?.status === 'healthy' ? '✓' : '⚠'}
+          </p>
+          <p className="text-sm text-gray-400 mt-1">System Health</p>
+          <p className="text-xs text-gray-500">{healthStatus?.status || 'Unknown'}</p>
+        </div>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
+          <p className="text-3xl font-bold text-cyan-400">
+            {healthStatus?.database?.agents || 0}
+          </p>
+          <p className="text-sm text-gray-400 mt-1">Agents</p>
+          <p className="text-xs text-gray-500">Registered</p>
+        </div>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
+          <p className="text-3xl font-bold text-purple-400">
+            {events.filter(e => !e.resolved).length}
+          </p>
+          <p className="text-sm text-gray-400 mt-1">Open Events</p>
+          <p className="text-xs text-gray-500">Security events</p>
+        </div>
+      </div>
+
+      {/* System Info */}
+      {healthStatus?.system && (
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-white mb-3">System Information</h3>
+          <div className="grid grid-cols-4 gap-4 text-sm">
             <div>
-              <p className="text-2xl font-bold text-green-400">23</p>
-              <p className="text-xs text-gray-500">Audit Events (24h)</p>
+              <p className="text-gray-500 text-xs">Platform</p>
+              <p className="text-white">{healthStatus.system.platform}</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-yellow-400">1</p>
-              <p className="text-xs text-gray-500">Open Issues</p>
+              <p className="text-gray-500 text-xs">Node.js</p>
+              <p className="text-white">{healthStatus.system.nodeVersion}</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-cyan-400">12</p>
-              <p className="text-xs text-gray-500">Skills Scanned</p>
+              <p className="text-gray-500 text-xs">Memory Usage</p>
+              <p className="text-white">{healthStatus.system.memoryUsagePercent}%</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs">CPU Load</p>
+              <p className="text-white">{healthStatus.system.cpuLoad}</p>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Security Events */}
       <div>
-        <h3 className="text-sm font-medium text-white mb-3">Security Events</h3>
-        <div className="space-y-2">
-          {events.map((event) => (
-            <div
-              key={event.id}
-              className={`bg-gray-800/50 border border-gray-700 rounded-lg p-3 ${event.resolved ? 'opacity-60' : ''}`}
-            >
-              <div className="flex items-start gap-3">
-                <span className="text-lg">{typeIcons[event.type]}</span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`px-2 py-0.5 rounded text-xs ${severityColors[event.severity]}`}>
-                      {event.severity}
-                    </span>
-                    <span className="text-white font-medium text-sm">{event.message}</span>
-                    {event.resolved && <span className="text-green-400 text-xs">✓ Resolved</span>}
+        <h3 className="text-lg font-medium text-white mb-3">Security Events</h3>
+        {events.length === 0 ? (
+          <div className="text-center py-12 bg-gray-800/50 border border-gray-700 rounded-lg">
+            <span className="text-4xl block mb-2">🔒</span>
+            <p className="text-gray-400">No security events recorded</p>
+            <p className="text-xs text-gray-500 mt-1">Security events will appear here as the system operates</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {events.map((event) => (
+              <div
+                key={event.id}
+                className="bg-gray-800/50 border border-gray-700 rounded-lg p-3 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`px-2 py-1 rounded text-xs ${severityColors[event.severity]}`}>
+                    {event.severity}
+                  </span>
+                  <div>
+                    <p className="text-sm text-white">{event.message}</p>
+                    {event.details && (
+                      <p className="text-xs text-gray-500">{event.details}</p>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-400">{event.details}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {new Date(event.timestamp).toLocaleString()}
-                  </p>
                 </div>
+                <span className="text-xs text-gray-500">
+                  {new Date(event.timestamp).toLocaleString()}
+                </span>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Audit Log */}
-      <div>
-        <h3 className="text-sm font-medium text-white mb-3">Audit Log</h3>
-        <div className="bg-gray-800/50 border border-gray-700 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-500 border-b border-gray-700">
-                <th className="p-3">Action</th>
-                <th className="p-3">User</th>
-                <th className="p-3">Resource</th>
-                <th className="p-3">IP</th>
-                <th className="p-3">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {auditLog.map((entry) => (
-                <tr key={entry.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="p-3 text-cyan-400 font-mono">{entry.action}</td>
-                  <td className="p-3 text-white">{entry.user}</td>
-                  <td className="p-3 text-gray-400">{entry.resource}</td>
-                  <td className="p-3 text-gray-500 font-mono">{entry.ip}</td>
-                  <td className="p-3 text-gray-500">
-                    {new Date(entry.timestamp).toLocaleTimeString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
 
-    query += ' ORDER BY CASE priority WHEN "critical" THEN 1 WHEN "high" THEN 2 WHEN "medium" THEN 3 ELSE 4 END, created_at DESC';
+    query += " ORDER BY CASE priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, created_at DESC";
 
     const stmt = db.prepare(query);
     const rows = stmt.all(...params) as TaskRow[];
