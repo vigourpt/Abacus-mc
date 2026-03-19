@@ -50,8 +50,10 @@ Thumbs.db
 
 # Documentation (not needed in image)
 *.pdf
-*.md
-!README.md
+docs/
+CONTRIBUTING.md
+CHANGELOG.md
+LICENSE
 
 # Testing
 coverage/
