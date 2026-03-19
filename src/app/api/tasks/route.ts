@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // =====================================================
 // Tasks API - CRUD operations for tasks (Phase 2)
 // =====================================================

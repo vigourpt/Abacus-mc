@@ -52,9 +52,9 @@ export function Dashboard() {
 
   const handleStartupSuccess = (project: { name: string; taskCount: number }) => {
     addEvent({
-      type: 'project_created',
-      message: `🚀 Startup "${project.name}" created with ${project.taskCount} tasks`,
-      timestamp: new Date().toISOString(),
+      type: 'system',
+      payload: { text: `🚀 Startup "${project.name}" created with ${project.taskCount} tasks` },
+      timestamp: new Date(),
     });
     // Navigate to pipeline after a short delay
     setTimeout(() => {

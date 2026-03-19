@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // =====================================================
 // OpenClaw Sync API - Sync agents to gateway
 // POST /api/openclaw/sync

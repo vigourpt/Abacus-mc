@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // API: Agent Performance Analytics
 import { NextResponse } from 'next/server';
 import { getAgentMetrics, getDivisionAnalytics } from '@/lib/analytics';

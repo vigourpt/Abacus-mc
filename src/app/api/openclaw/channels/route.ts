@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // =====================================================
 // OpenClaw Channels API - Manage channel configurations
 // /api/openclaw/channels
