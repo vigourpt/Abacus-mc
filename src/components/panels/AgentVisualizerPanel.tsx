@@ -44,7 +44,7 @@ const DIVISION_ACCESSORIES: Record<AgentDivision, { head?: string; hand?: string
 };
 
 // Agent visual states
-type AgentState = 'idle' | 'working' | 'thinking' | 'completed' | 'sleeping';
+type AgentState = 'idle' | 'working' | 'thinking' | 'completed' | 'sleeping' | 'walking';
 
 interface PixelAgent {
   id: string;
