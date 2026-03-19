@@ -1,4 +1,4 @@
-import { db } from './db';
+import db from './db';
 import { generateId, slugify } from './utils';
 import { createChildLogger } from './logger';
 import type { Task, TaskPriority, AgentDivision } from '@/types';
@@ -74,14 +74,14 @@ export class StartupGenerator {
     const configPath = path.join(process.cwd(), 'config', 'startup_pipeline.yaml');
     
     if (!fs.existsSync(configPath)) {
-      logger.error('Pipeline config not found at', configPath);
+      logger.error({ configPath }, 'Pipeline config not found');
       throw new Error('Pipeline configuration file not found');
     }
 
     const configContent = fs.readFileSync(configPath, 'utf-8');
     this.pipelineConfig = yaml.load(configContent) as PipelineConfig;
     
-    logger.info('Loaded pipeline config:', this.pipelineConfig.name);
+    logger.info({ config: this.pipelineConfig.name }, 'Loaded pipeline config');
     return this.pipelineConfig;
   }
 
@@ -126,9 +126,10 @@ export class StartupGenerator {
     const projectId = generateId();
     const name = projectName || this.generateProjectName(idea);
     const slug = slugify(name);
-    const createdAt = new Date().toISOString();
+    const createdAt = new Date();
+    const createdAtISO = createdAt.toISOString();
 
-    logger.info(`Generating startup project: ${name} (${projectId})`);
+    logger.info({ projectName: name, projectId }, 'Generating startup project');
 
     // Create project directory
     const projectDir = path.join(process.cwd(), 'projects', slug);
@@ -137,7 +138,7 @@ export class StartupGenerator {
     }
 
     // Create project brief
-    const briefContent = this.generateBrief(idea, name, createdAt);
+    const briefContent = this.generateBrief(idea, name, createdAtISO);
     fs.writeFileSync(path.join(projectDir, 'brief.md'), briefContent);
 
     // Generate tasks from pipeline phases
@@ -170,8 +171,8 @@ export class StartupGenerator {
           status: dependencies.length === 0 ? 'todo' : 'backlog',
           priority: templateTask.priority,
           assignedTo: agentId || undefined,
-          createdAt,
-          updatedAt: createdAt,
+          createdAt: createdAtISO,
+          updatedAt: createdAtISO,
           subtasks: [],
           dependencies,
           estimatedHours: templateTask.estimatedHours,
@@ -197,10 +198,10 @@ export class StartupGenerator {
           db.prepare(`
             INSERT INTO task_dependencies (id, task_id, depends_on_id, dependency_type, created_at)
             VALUES (?, ?, ?, 'finish_to_start', ?)
-          `).run(generateId(), taskId, depId, createdAt);
+          `).run(generateId(), taskId, depId, createdAtISO);
         }
 
-        logger.info(`Created task: ${templateTask.title} (${taskId})`);
+        logger.info({ taskTitle: templateTask.title, taskId }, 'Created task');
       }
 
       phases.push({
@@ -220,7 +221,7 @@ export class StartupGenerator {
       generateId(),
       `Startup project "${name}" generated from idea`,
       JSON.stringify({ projectId, projectName: name, taskCount: allTasks.length }),
-      createdAt
+      createdAtISO
     );
 
     const project: GeneratedProject = {
@@ -228,12 +229,12 @@ export class StartupGenerator {
       name,
       slug,
       idea,
-      createdAt,
+      createdAt: createdAtISO,
       phases,
       tasks: allTasks,
     };
 
-    logger.info(`Generated ${allTasks.length} tasks across ${phases.length} phases`);
+    logger.info({ taskCount: allTasks.length, phaseCount: phases.length }, 'Generated tasks across phases');
 
     return project;
   }

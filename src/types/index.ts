@@ -156,7 +156,7 @@ export interface DeviceIdentity {
 
 // Real-time Event
 export interface RealtimeEvent {
-  type: 'task_update' | 'agent_status' | 'message' | 'system' | 'collaboration';
+  type: 'task_update' | 'agent_status' | 'message' | 'system' | 'collaboration' | 'project_created';
   payload: unknown;
   timestamp: Date;
 }

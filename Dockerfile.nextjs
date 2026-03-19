@@ -13,11 +13,11 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy dependency manifests
-COPY package.json pnpm-lock.yaml* ./
+# Copy dependency manifests and config
+COPY package.json pnpm-lock.yaml* .npmrc* ./
 
-# Install dependencies (cached layer)
-RUN pnpm install --frozen-lockfile
+# Install dependencies
+RUN pnpm install && pnpm approve-builds better-sqlite3
 
 # ---- Stage 2: Builder ----
 FROM node:20-alpine AS builder
@@ -30,7 +30,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy deps from previous stage
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* .npmrc* ./
 
 # Copy source code
 COPY src/ ./src/
