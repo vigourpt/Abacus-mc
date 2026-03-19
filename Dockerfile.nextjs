@@ -1,6 +1,9 @@
 # ============================================
 # Dockerfile.nextjs - Next.js Mission Control UI
-# Multi-stage build for production optimization
+# For use with docker-compose.yml (multi-service)
+# ============================================
+# For standalone single-service deployment,
+# use the main Dockerfile instead.
 # ============================================
 
 # ---- Stage 1: Dependencies ----
@@ -10,13 +13,10 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy dependency manifests and config
-COPY package.json pnpm-lock.yaml* .npmrc* ./
+COPY package.json .npmrc* ./
 
-# Install dependencies
 RUN pnpm install && pnpm approve-builds better-sqlite3
 
 # ---- Stage 2: Builder ----
@@ -28,51 +28,40 @@ WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy deps from previous stage
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json pnpm-lock.yaml* .npmrc* ./
+COPY package.json .npmrc* ./
 
-# Copy source code
 COPY src/ ./src/
 COPY public/ ./public/
 COPY workspace/ ./workspace/
 COPY scripts/ ./scripts/
-COPY next.config.ts ./
-COPY tsconfig.json ./
-COPY tailwind.config.ts ./
-COPY postcss.config.js ./
+COPY next.config.ts tsconfig.json tailwind.config.ts postcss.config.js ./
 
-# Build the Next.js application
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
+# Prepare standalone output
+RUN cp -r public .next/standalone/public 2>/dev/null || true
+RUN cp -r .next/static .next/standalone/.next/static
+RUN mkdir -p .next/standalone/.data
+RUN cp -r workspace .next/standalone/workspace
+
 # ---- Stage 3: Production ----
 FROM node:20-alpine AS production
 
-# Security: run as non-root user
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 
-# Copy only what's needed for production
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/workspace ./workspace
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/scripts ./scripts
-
-# Create data directory with correct ownership
 RUN mkdir -p .data && chown -R nextjs:nodejs .data
-RUN chown -R nextjs:nodejs /app
 
-# Environment
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_PATH=.data/startup.db
 
@@ -80,4 +69,4 @@ EXPOSE 3000
 
 USER nextjs
 
-CMD ["pnpm", "start"]
+CMD ["node", "server.js"]
