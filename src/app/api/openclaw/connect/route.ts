@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // =====================================================
 // OpenClaw Connect API - Establish gateway connection
 // POST /api/openclaw/connect

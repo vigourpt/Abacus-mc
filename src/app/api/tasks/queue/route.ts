@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // =====================================================
 // Task Queue API - Poll next task for agent (Phase 2)
 // =====================================================

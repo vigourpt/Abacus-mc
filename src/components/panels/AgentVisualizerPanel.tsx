@@ -116,7 +116,7 @@ function drawCharacter(
   
   // Legs
   const legY = y + 32 - workingBounce;
-  const legOffset = state === 'walking' ? Math.sin(frame * 0.5) * 3 : 0;
+  const legOffset = state === 'working' ? Math.sin(frame * 0.5) * 3 : 0;
   
   // Left leg
   ctx.fillStyle = colors.secondary;

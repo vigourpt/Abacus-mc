@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // API: System Health Dashboard
 import { NextResponse } from 'next/server';
 import { getSystemHealth, getRealTimeStats, getTokenUsageAnalytics } from '@/lib/analytics';

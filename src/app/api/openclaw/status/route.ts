@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // =====================================================
 // OpenClaw Status API - Get connection status
 // GET /api/openclaw/status

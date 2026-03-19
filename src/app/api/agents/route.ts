@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // =====================================================
 // Agents API - CRUD operations for agents (Phase 2)
 // =====================================================

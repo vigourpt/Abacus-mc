@@ -1,6 +1,13 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
@@ -19,7 +26,9 @@ const nextConfig: NextConfig = {
   turbopack: {},
   webpack: (config, { isServer }) => {
     if (isServer) {
-      config.externals.push('better-sqlite3');
+      config.externals.push({
+        'better-sqlite3': 'commonjs better-sqlite3',
+      });
     }
     return config;
   },

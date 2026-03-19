@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // =====================================================
 // OpenClaw Send API - Send message to channel
 // POST /api/openclaw/send

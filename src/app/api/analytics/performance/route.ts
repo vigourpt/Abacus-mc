@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // API: Performance Metrics
 import { NextResponse } from 'next/server';
 import { getPerformanceMonitor } from '@/lib/performance-monitor';

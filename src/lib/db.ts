@@ -22,6 +22,7 @@ db.pragma('foreign_keys = ON');
 
 logger.info({ path: DB_PATH }, 'Database initialized');
 
+export { db };
 export default db;
 
 // Helper to run migrations

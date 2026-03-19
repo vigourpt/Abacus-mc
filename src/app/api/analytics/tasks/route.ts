@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // API: Task Analytics
 import { NextResponse } from 'next/server';
 import { getTaskAnalytics, getHistoricalMetrics } from '@/lib/analytics';
