@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useAppStore } from '@/store';
 
 interface Skill {
   id: string;
@@ -10,63 +11,54 @@ interface Skill {
   author: string;
   category: string;
   installed: boolean;
-  securityScore: number;
-  downloads: number;
+  agentCount: number;
 }
 
 export function SkillsPanel() {
+  const { agents } = useAppStore();
   const [skills, setSkills] = useState<Skill[]>([]);
   const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+
+  const deriveSkills = useCallback(() => {
+    // Derive skills from agent capabilities
+    const skillMap = new Map<string, { count: number; divisions: Set<string> }>();
+
+    agents.forEach(agent => {
+      const caps = agent.capabilities || [];
+      const techs = agent.technicalSkills || [];
+      [...caps, ...techs].forEach(skill => {
+        const name = String(skill).trim().toLowerCase();
+        if (name && name.length > 1) {
+          const existing = skillMap.get(name) || { count: 0, divisions: new Set<string>() };
+          existing.count++;
+          existing.divisions.add(agent.division);
+          skillMap.set(name, existing);
+        }
+      });
+    });
+
+    const derived: Skill[] = Array.from(skillMap.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 30)
+      .map(([name, data], i) => ({
+        id: String(i),
+        name,
+        description: `Used by ${data.count} agent(s) across ${data.divisions.size} division(s)`,
+        version: '1.0.0',
+        author: Array.from(data.divisions).join(', '),
+        category: Array.from(data.divisions)[0] || 'general',
+        installed: true,
+        agentCount: data.count,
+      }));
+
+    setSkills(derived);
+    setLoading(false);
+  }, [agents]);
 
   useEffect(() => {
-    // Simulated skills registry
-    setSkills([
-      {
-        id: '1',
-        name: 'web-scraper',
-        description: 'Advanced web scraping and data extraction',
-        version: '2.1.0',
-        author: 'ClawdHub',
-        category: 'data',
-        installed: true,
-        securityScore: 95,
-        downloads: 12500,
-      },
-      {
-        id: '2',
-        name: 'code-analyzer',
-        description: 'Static code analysis and security scanning',
-        version: '1.5.2',
-        author: 'skills.sh',
-        category: 'development',
-        installed: true,
-        securityScore: 98,
-        downloads: 8900,
-      },
-      {
-        id: '3',
-        name: 'email-composer',
-        description: 'AI-powered email drafting and templates',
-        version: '3.0.1',
-        author: 'ClawdHub',
-        category: 'communication',
-        installed: false,
-        securityScore: 92,
-        downloads: 15600,
-      },
-      {
-        id: '4',
-        name: 'database-manager',
-        description: 'Database operations and query optimization',
-        version: '1.2.0',
-        author: 'skills.sh',
-        category: 'data',
-        installed: false,
-        securityScore: 88,
-        downloads: 5400,
-      },
-    ]);
-  }, []);
+    deriveSkills();
+  }, [deriveSkills]);
 
   const filteredSkills = skills.filter((skill) => {
     if (filter === 'installed') return skill.installed;
@@ -74,12 +66,23 @@ export function SkillsPanel() {
     return true;
   });
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">Skills Hub</h2>
+        <div>
+          <h2 className="text-xl font-semibold text-white">Skills & Capabilities</h2>
+          <p className="text-sm text-gray-400 mt-1">Derived from {agents.length} agents</p>
+        </div>
         <div className="flex gap-2">
-          {['all', 'installed', 'available'].map((f) => (
+          {['all', 'installed'].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -95,50 +98,35 @@ export function SkillsPanel() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {filteredSkills.map((skill) => (
-          <div
-            key={skill.id}
-            className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 hover:border-gray-600 transition-colors"
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-medium text-white">{skill.name}</h3>
-                <p className="text-xs text-gray-500">v{skill.version} by {skill.author}</p>
-              </div>
-              <span className={`px-2 py-1 rounded text-xs ${
-                skill.installed
-                  ? 'bg-green-500/20 text-green-400'
-                  : 'bg-gray-500/20 text-gray-400'
-              }`}>
-                {skill.installed ? 'Installed' : 'Available'}
-              </span>
-            </div>
-
-            <p className="text-sm text-gray-400 mb-3">{skill.description}</p>
-
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-3">
-                <span className="text-gray-500">
-                  🔒 Security: {skill.securityScore}%
-                </span>
-                <span className="text-gray-500">
-                  ⬇️ {skill.downloads.toLocaleString()}
+      {filteredSkills.length === 0 ? (
+        <div className="text-center py-16">
+          <span className="text-5xl block mb-4">📚</span>
+          <h3 className="text-lg font-medium text-white mb-2">No Skills Found</h3>
+          <p className="text-gray-400 text-sm">
+            Skills are derived from agent capabilities. Add agents to see their skills.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          {filteredSkills.map((skill) => (
+            <div
+              key={skill.id}
+              className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 hover:border-gray-600 transition-colors"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="font-medium text-white">{skill.name}</h3>
+                  <p className="text-xs text-gray-500">{skill.author}</p>
+                </div>
+                <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs">
+                  {skill.agentCount} agents
                 </span>
               </div>
-              <button
-                className={`px-3 py-1 rounded transition-colors ${
-                  skill.installed
-                    ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                    : 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
-                }`}
-              >
-                {skill.installed ? 'Uninstall' : 'Install'}
-              </button>
+              <p className="text-sm text-gray-400">{skill.description}</p>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

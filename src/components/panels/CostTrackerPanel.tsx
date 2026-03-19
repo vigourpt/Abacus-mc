@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface TokenUsage {
   model: string;
@@ -10,106 +10,108 @@ interface TokenUsage {
   requests: number;
 }
 
-interface DailyCost {
-  date: string;
-  cost: number;
-}
-
 export function CostTrackerPanel() {
   const [tokenUsage, setTokenUsage] = useState<TokenUsage[]>([]);
-  const [dailyCosts, setDailyCosts] = useState<DailyCost[]>([]);
   const [totalCost, setTotalCost] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Simulated token usage data
-    const usage: TokenUsage[] = [
-      { model: 'claude-3.5-sonnet', inputTokens: 1250000, outputTokens: 456000, cost: 12.45, requests: 1234 },
-      { model: 'gpt-4-turbo', inputTokens: 890000, outputTokens: 234000, cost: 8.90, requests: 567 },
-      { model: 'claude-3-opus', inputTokens: 125000, outputTokens: 45000, cost: 5.67, requests: 89 },
-      { model: 'gpt-3.5-turbo', inputTokens: 2340000, outputTokens: 890000, cost: 3.21, requests: 2345 },
-    ];
-    setTokenUsage(usage);
-    setTotalCost(usage.reduce((sum, u) => sum + u.cost, 0));
-
-    // Last 7 days costs
-    const costs: DailyCost[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      costs.push({
-        date: date.toISOString().split('T')[0],
-        cost: Math.random() * 10 + 5,
-      });
+  const fetchUsage = useCallback(async () => {
+    try {
+      const res = await fetch('/api/analytics/system');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data?.tokenUsage) {
+          setTokenUsage(data.data.tokenUsage);
+          setTotalCost(data.data.tokenUsage.reduce((sum: number, t: TokenUsage) => sum + t.cost, 0));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch cost data:', err);
+    } finally {
+      setLoading(false);
     }
-    setDailyCosts(costs);
   }, []);
 
-  const formatTokens = (tokens: number) => {
-    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
-    if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
-    return tokens.toString();
-  };
+  useEffect(() => {
+    fetchUsage();
+  }, [fetchUsage]);
 
-  const maxDailyCost = Math.max(...dailyCosts.map(d => d.cost));
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">Cost Tracker</h2>
-        <div className="text-right">
-          <p className="text-sm text-gray-500">This Month</p>
-          <p className="text-2xl font-bold text-green-400">${totalCost.toFixed(2)}</p>
+        <button
+          onClick={fetchUsage}
+          className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+        >
+          🔄 Refresh
+        </button>
+      </div>
+
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
+          <p className="text-3xl font-bold text-green-400">${totalCost.toFixed(2)}</p>
+          <p className="text-sm text-gray-400 mt-1">Total Cost</p>
+        </div>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
+          <p className="text-3xl font-bold text-cyan-400">
+            {tokenUsage.reduce((sum, t) => sum + t.requests, 0).toLocaleString()}
+          </p>
+          <p className="text-sm text-gray-400 mt-1">Total Requests</p>
+        </div>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
+          <p className="text-3xl font-bold text-purple-400">{tokenUsage.length}</p>
+          <p className="text-sm text-gray-400 mt-1">Models Used</p>
         </div>
       </div>
 
-      {/* Cost Chart */}
-      <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-white mb-4">Daily Spending (Last 7 Days)</h3>
-        <div className="flex items-end gap-2 h-32">
-          {dailyCosts.map((day, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center">
-              <div
-                className="w-full bg-gradient-to-t from-cyan-600 to-cyan-400 rounded-t"
-                style={{ height: `${(day.cost / maxDailyCost) * 100}%` }}
-              />
-              <span className="text-xs text-gray-500 mt-2">
-                {new Date(day.date).toLocaleDateString('en', { weekday: 'short' })}
-              </span>
-            </div>
-          ))}
+      {/* Usage by Model */}
+      {tokenUsage.length === 0 ? (
+        <div className="text-center py-16">
+          <span className="text-5xl block mb-4">💰</span>
+          <h3 className="text-lg font-medium text-white mb-2">No Usage Data Yet</h3>
+          <p className="text-gray-400 text-sm max-w-md mx-auto">
+            Token usage and costs will be tracked here as agents make API calls to AI models.
+          </p>
         </div>
-      </div>
-
-      {/* Model Breakdown */}
-      <div className="bg-gray-800/50 border border-gray-700 rounded-lg">
-        <div className="p-4 border-b border-gray-700">
-          <h3 className="text-sm font-medium text-white">Token Usage by Model</h3>
+      ) : (
+        <div>
+          <h3 className="text-lg font-medium text-white mb-3">Usage by Model</h3>
+          <div className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left p-3 text-gray-400">Model</th>
+                  <th className="text-right p-3 text-gray-400">Input Tokens</th>
+                  <th className="text-right p-3 text-gray-400">Output Tokens</th>
+                  <th className="text-right p-3 text-gray-400">Requests</th>
+                  <th className="text-right p-3 text-gray-400">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tokenUsage.map((usage, i) => (
+                  <tr key={i} className="border-b border-gray-800 hover:bg-gray-800/50">
+                    <td className="p-3 text-white font-medium">{usage.model}</td>
+                    <td className="p-3 text-right text-gray-300">{usage.inputTokens.toLocaleString()}</td>
+                    <td className="p-3 text-right text-gray-300">{usage.outputTokens.toLocaleString()}</td>
+                    <td className="p-3 text-right text-gray-300">{usage.requests.toLocaleString()}</td>
+                    <td className="p-3 text-right text-green-400">${usage.cost.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <table className="w-full">
-          <thead>
-            <tr className="text-left text-xs text-gray-500 border-b border-gray-700">
-              <th className="p-3">Model</th>
-              <th className="p-3">Input Tokens</th>
-              <th className="p-3">Output Tokens</th>
-              <th className="p-3">Requests</th>
-              <th className="p-3 text-right">Cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tokenUsage.map((usage, i) => (
-              <tr key={i} className="border-b border-gray-800 hover:bg-gray-800/50">
-                <td className="p-3">
-                  <span className="text-white font-medium">{usage.model}</span>
-                </td>
-                <td className="p-3 text-gray-400">{formatTokens(usage.inputTokens)}</td>
-                <td className="p-3 text-gray-400">{formatTokens(usage.outputTokens)}</td>
-                <td className="p-3 text-gray-400">{usage.requests.toLocaleString()}</td>
-                <td className="p-3 text-right text-green-400 font-medium">${usage.cost.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      )}
     </div>
   );
 }

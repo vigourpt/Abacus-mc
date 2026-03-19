@@ -1,42 +1,62 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store';
 import { timeAgo } from '@/lib/utils';
 
+interface ActivityEntry {
+  id: string;
+  type: string;
+  message: string;
+  agentId?: string;
+  taskId?: string;
+  createdAt: string;
+}
+
 export function ActivityFeed() {
   const { events } = useAppStore();
+  const [dbActivities, setDbActivities] = useState<ActivityEntry[]>([]);
 
-  // Sample activities for demo
-  const activities = [
-    {
-      id: '1',
-      type: 'agent_created',
-      message: 'CEO Agent initialized',
-      timestamp: new Date(),
-    },
-    {
-      id: '2',
-      type: 'task_assigned',
-      message: 'Task assigned to Developer Agent',
-      timestamp: new Date(Date.now() - 5 * 60 * 1000),
-    },
-    {
-      id: '3',
-      type: 'system',
-      message: 'System initialized successfully',
-      timestamp: new Date(Date.now() - 10 * 60 * 1000),
-    },
-  ];
+  useEffect(() => {
+    fetch('/api/activity?limit=20')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setDbActivities(data))
+      .catch(() => setDbActivities([]));
+  }, []);
+
+  const eventActivities = events.map((e) => ({
+    id: `evt-${e.timestamp.getTime()}`,
+    type: e.type,
+    message: typeof e.payload === 'object' && e.payload !== null
+      ? (e.payload as any).text || JSON.stringify(e.payload).slice(0, 80)
+      : String(e.payload).slice(0, 80),
+    timestamp: e.timestamp,
+  }));
+
+  const apiActivities = dbActivities.map((a) => ({
+    id: a.id,
+    type: a.type,
+    message: a.message,
+    timestamp: new Date(a.createdAt),
+  }));
 
   const allActivities = [
-    ...events.map((e) => ({
-      id: e.timestamp.getTime().toString(),
-      type: e.type,
-      message: JSON.stringify(e.payload).slice(0, 50),
-      timestamp: e.timestamp,
-    })),
-    ...activities,
-  ].slice(0, 20);
+    ...eventActivities,
+    ...apiActivities,
+  ]
+    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    .slice(0, 20);
+
+  const typeIcons: Record<string, string> = {
+    agent_created: '🤖',
+    task_assigned: '📋',
+    task_update: '⚡',
+    task_completed: '✅',
+    system: '💬',
+    startup_generated: '🚀',
+    agent_sync: '🔄',
+    error: '❌',
+  };
 
   return (
     <section>
@@ -49,13 +69,7 @@ export function ActivityFeed() {
               className="flex gap-3 pb-4 border-b border-gray-700 last:border-0 last:pb-0"
             >
               <span className="text-lg">
-                {activity.type === 'agent_created'
-                  ? '🤖'
-                  : activity.type === 'task_assigned'
-                  ? '📋'
-                  : activity.type === 'task_update'
-                  ? '⚡'
-                  : '💬'}
+                {typeIcons[activity.type] || '💬'}
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white">{activity.message}</p>
@@ -67,9 +81,13 @@ export function ActivityFeed() {
           ))}
 
           {allActivities.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-8">
-              No recent activity
-            </p>
+            <div className="text-center py-8">
+              <span className="text-4xl block mb-2">📭</span>
+              <p className="text-sm text-gray-500">No recent activity</p>
+              <p className="text-xs text-gray-600 mt-1">
+                Activity will appear here as agents work on tasks
+              </p>
+            </div>
           )}
         </div>
       </div>

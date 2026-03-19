@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface LogEntry {
   id: string;
@@ -15,50 +15,35 @@ export function LogsPanel() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [levelFilter, setLevelFilter] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const res = await fetch('/api/activity?limit=100');
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = (Array.isArray(data) ? data : []).map((entry: any, i: number) => ({
+          id: entry.id || String(i),
+          level: mapTypeToLevel(entry.type),
+          source: entry.type || 'system',
+          message: entry.message || '',
+          timestamp: entry.createdAt || new Date().toISOString(),
+          metadata: entry.metadata || undefined,
+        }));
+        setLogs(mapped);
+      }
+    } catch (err) {
+      console.error('Failed to fetch logs:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    // Simulated logs
-    setLogs([
-      {
-        id: '1',
-        level: 'info',
-        source: 'task-planner',
-        message: 'Task assigned to developer-agent',
-        timestamp: new Date(Date.now() - 60000).toISOString(),
-        metadata: { taskId: 'task-123', agentId: 'dev-001' },
-      },
-      {
-        id: '2',
-        level: 'debug',
-        source: 'websocket',
-        message: 'Connection heartbeat successful',
-        timestamp: new Date(Date.now() - 120000).toISOString(),
-      },
-      {
-        id: '3',
-        level: 'warn',
-        source: 'memory',
-        message: 'Memory usage at 75%',
-        timestamp: new Date(Date.now() - 180000).toISOString(),
-        metadata: { usedMB: 768, totalMB: 1024 },
-      },
-      {
-        id: '4',
-        level: 'error',
-        source: 'api',
-        message: 'Failed to connect to external service',
-        timestamp: new Date(Date.now() - 240000).toISOString(),
-        metadata: { service: 'openai', error: 'ETIMEDOUT' },
-      },
-      {
-        id: '5',
-        level: 'info',
-        source: 'agent-sync',
-        message: 'Synced 112 agents from workspace',
-        timestamp: new Date(Date.now() - 300000).toISOString(),
-      },
-    ]);
-  }, []);
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 10000);
+    return () => clearInterval(interval);
+  }, [fetchLogs]);
 
   const levelColors: Record<string, string> = {
     info: 'text-blue-400 bg-blue-400/10',
@@ -72,6 +57,14 @@ export function LogsPanel() {
     if (searchTerm && !log.message.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -96,35 +89,58 @@ export function LogsPanel() {
             <option value="error">Error</option>
             <option value="debug">Debug</option>
           </select>
+          <button
+            onClick={fetchLogs}
+            className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm transition-colors"
+          >
+            🔄 Refresh
+          </button>
         </div>
       </div>
 
       <div className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
         <div className="max-h-[600px] overflow-y-auto font-mono text-sm">
-          {filtered.map((log) => (
-            <div
-              key={log.id}
-              className="border-b border-gray-800 p-3 hover:bg-gray-800/50"
-            >
-              <div className="flex items-start gap-3">
-                <span className="text-gray-600 text-xs">
-                  {new Date(log.timestamp).toLocaleTimeString()}
-                </span>
-                <span className={`px-2 py-0.5 rounded text-xs uppercase ${levelColors[log.level]}`}>
-                  {log.level}
-                </span>
-                <span className="text-purple-400 text-xs">[{log.source}]</span>
-                <span className="text-gray-300 flex-1">{log.message}</span>
-              </div>
-              {log.metadata && (
-                <pre className="mt-2 ml-20 text-xs text-gray-500 bg-gray-800/50 p-2 rounded">
-                  {JSON.stringify(log.metadata, null, 2)}
-                </pre>
-              )}
+          {filtered.length === 0 ? (
+            <div className="text-center py-12">
+              <span className="text-4xl block mb-2">📝</span>
+              <p className="text-gray-500">No logs found</p>
+              <p className="text-xs text-gray-600 mt-1">
+                Logs will appear here as agents perform operations
+              </p>
             </div>
-          ))}
+          ) : (
+            filtered.map((log) => (
+              <div
+                key={log.id}
+                className="border-b border-gray-800 p-3 hover:bg-gray-800/50"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="text-gray-600 text-xs whitespace-nowrap">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-xs uppercase ${levelColors[log.level]}`}>
+                    {log.level}
+                  </span>
+                  <span className="text-purple-400 text-xs">[{log.source}]</span>
+                  <span className="text-gray-300 flex-1">{log.message}</span>
+                </div>
+                {log.metadata && Object.keys(log.metadata).length > 0 && (
+                  <pre className="mt-2 ml-20 text-xs text-gray-500 bg-gray-800/50 p-2 rounded">
+                    {JSON.stringify(log.metadata, null, 2)}
+                  </pre>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+function mapTypeToLevel(type: string): 'info' | 'warn' | 'error' | 'debug' {
+  if (type?.includes('error') || type?.includes('fail')) return 'error';
+  if (type?.includes('warn')) return 'warn';
+  if (type?.includes('debug')) return 'debug';
+  return 'info';
 }
