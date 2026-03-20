@@ -166,6 +166,11 @@ export class OpenClawClient extends EventEmitter {
         };
         if (originUrl) {
           headers['Origin'] = originUrl;
+          // Set Host header to match Origin so OpenClaw doesn't reject
+          // the connection due to Host/Origin mismatch (e.g. internal
+          // Docker IP vs public URL).
+          const urlObj = new URL(originUrl);
+          headers['Host'] = urlObj.host;
         }
 
         this.ws = new WebSocket(url, { headers });

@@ -437,6 +437,14 @@ If `NEXT_PUBLIC_OPENCLAW_ORIGIN_URL` is not set, the client falls back to `NEXT_
 
 > **Why `NEXT_PUBLIC_` prefix?** Next.js evaluates `process.env.VARIABLE` at **build time** for variables without the `NEXT_PUBLIC_` prefix. This means if `OPENCLAW_ORIGIN_URL` was not set when `next build` ran (e.g., in Docker multi-stage builds), it would be empty at runtime — even if the environment variable is set in the container. The `NEXT_PUBLIC_` prefix ensures the value is embedded in the JavaScript bundle and available at runtime.
 
+#### "OpenClaw rejects WebSocket (Host/Origin mismatch)"
+
+When Mission Control connects to OpenClaw via an internal Docker IP (e.g., `ws://172.18.0.3:45397`), the `Host` header is automatically set to the internal address. OpenClaw validates that the `Host` header matches the `Origin` header and rejects the connection if they differ.
+
+The WebSocket client now explicitly sets the `Host` header to match the `Origin` URL's host when `NEXT_PUBLIC_OPENCLAW_ORIGIN_URL` (or `NEXT_PUBLIC_APP_URL`) is configured. No additional user action is needed — just ensure the Origin URL environment variable is set correctly.
+
+If you still see "invalid request frame" errors after setting the Origin URL, verify that both `Origin` and `Host` headers are being sent by checking the Mission Control logs for the WebSocket connection attempt.
+
 #### "OpenClaw connection timeout"
 
 - Verify `OPENCLAW_GATEWAY_HOST` is reachable from the Mission Control server
