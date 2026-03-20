@@ -475,6 +475,21 @@ Known valid client IDs:
 
 If you see `must match a schema in anyOf`, this means the `client.id` is not in the gateway's accepted list. Inspect the OpenClaw Gateway configuration or admin panel to find the expected client identifiers.
 
+#### "invalid connect params: at /client/mode: must be equal to constant"
+
+OpenClaw validates the `client.mode` field separately from the `role` field. The **mode** must be `webchat` or `cli` — it is **not** the same as the client role (e.g. `operator`). If you see this error it usually means `mode` was incorrectly set to the role value.
+
+```bash
+# Set the client mode in your .env file (default: webchat)
+OPENCLAW_CLIENT_MODE=webchat
+```
+
+Valid modes:
+- `webchat` — Web-based control UIs (default)
+- `cli` — Command-line clients
+
+> **Note:** The `role` field (`operator`) and the `mode` field (`webchat`) serve different purposes. `role` controls permissions/scopes; `mode` tells the gateway what kind of client session to create.
+
 #### "OpenClaw connection timeout"
 
 - Verify `OPENCLAW_GATEWAY_HOST` is reachable from the Mission Control server
