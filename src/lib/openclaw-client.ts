@@ -154,7 +154,11 @@ export class OpenClawClient extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       try {
-        const originUrl = process.env.OPENCLAW_ORIGIN_URL || process.env.NEXT_PUBLIC_APP_URL || '';
+        // Use NEXT_PUBLIC_ prefix so the value is available at runtime (not just build time)
+        // Next.js inlines non-NEXT_PUBLIC_ env vars at build time, so OPENCLAW_ORIGIN_URL
+        // would be empty if not set during `next build`. NEXT_PUBLIC_OPENCLAW_ORIGIN_URL
+        // is embedded in the bundle and also accessible server-side at runtime.
+        const originUrl = process.env.NEXT_PUBLIC_OPENCLAW_ORIGIN_URL || process.env.NEXT_PUBLIC_APP_URL || '';
         const headers: Record<string, string> = {
           'X-OpenClaw-Version': OPENCLAW_PROTOCOL_VERSION.toString(),
           'X-Device-Id': this.identity.deviceId,

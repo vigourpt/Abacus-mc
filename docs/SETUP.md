@@ -85,7 +85,7 @@ Open [http://localhost:3000](http://localhost:3000)
 | `OPENCLAW_GATEWAY_HOST` | — | Gateway hostname or IP address |
 | `OPENCLAW_GATEWAY_PORT` | `18789` | Gateway port |
 | `OPENCLAW_GATEWAY_TOKEN` | — | Gateway authentication token |
-| `OPENCLAW_ORIGIN_URL` | — | Origin URL sent in WebSocket headers (required for remote OpenClaw). Falls back to `NEXT_PUBLIC_APP_URL` |
+| `NEXT_PUBLIC_OPENCLAW_ORIGIN_URL` | — | Origin URL sent in WebSocket headers (required for remote OpenClaw). Uses `NEXT_PUBLIC_` prefix for runtime availability. Falls back to `NEXT_PUBLIC_APP_URL` |
 | `NEXT_PUBLIC_APP_URL` | — | Public URL of this Mission Control instance |
 | `OPENCLAW_PRIVATE_KEY` | — | Ed25519 private key (inline PEM or base64 raw). Use `\n` for newlines |
 | `OPENCLAW_PRIVATE_KEY_PATH` | — | Path to Ed25519 PEM private key file (alternative to inline) |
@@ -426,14 +426,16 @@ OpenClaw uses Ed25519 PEM keys, but nacl expects raw 64-byte keys. Mission Contr
 
 #### "OpenClaw rejects WebSocket (missing Origin header)"
 
-OpenClaw requires an `Origin` header on all WebSocket connections. Set the `OPENCLAW_ORIGIN_URL` environment variable to your Mission Control public URL:
+OpenClaw requires an `Origin` header on all WebSocket connections. Set the `NEXT_PUBLIC_OPENCLAW_ORIGIN_URL` environment variable to your Mission Control public URL:
 
 ```bash
 # In .env
-OPENCLAW_ORIGIN_URL=https://mission-control.srv1506055.hstgr.cloud
+NEXT_PUBLIC_OPENCLAW_ORIGIN_URL=https://mission-control.srv1506055.hstgr.cloud
 ```
 
-If `OPENCLAW_ORIGIN_URL` is not set, the client falls back to `NEXT_PUBLIC_APP_URL`. If neither is set, the Origin header is omitted and OpenClaw will reject the connection.
+If `NEXT_PUBLIC_OPENCLAW_ORIGIN_URL` is not set, the client falls back to `NEXT_PUBLIC_APP_URL`. If neither is set, the Origin header is omitted and OpenClaw will reject the connection.
+
+> **Why `NEXT_PUBLIC_` prefix?** Next.js evaluates `process.env.VARIABLE` at **build time** for variables without the `NEXT_PUBLIC_` prefix. This means if `OPENCLAW_ORIGIN_URL` was not set when `next build` ran (e.g., in Docker multi-stage builds), it would be empty at runtime — even if the environment variable is set in the container. The `NEXT_PUBLIC_` prefix ensures the value is embedded in the JavaScript bundle and available at runtime.
 
 #### "OpenClaw connection timeout"
 
