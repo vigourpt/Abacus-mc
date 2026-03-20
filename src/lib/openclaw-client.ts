@@ -27,6 +27,9 @@ const logger = createChildLogger('openclaw-client');
 const CLIENT_ID = process.env.OPENCLAW_CLIENT_ID || 'openclaw-control-ui';
 const CLIENT_VERSION = '1.0.0';
 const CLIENT_ROLE = 'operator';
+// OpenClaw client mode – must be 'webchat' or 'cli' (NOT the role).
+// The paired-device config uses clientMode; 'webchat' is correct for a web UI.
+const CLIENT_MODE = process.env.OPENCLAW_CLIENT_MODE || 'webchat';
 const CLIENT_SCOPES = ['operator.read', 'operator.write'];
 
 /** Timeout (ms) to wait for the full protocol handshake to complete. */
@@ -269,6 +272,7 @@ export class OpenClawClient extends EventEmitter {
 
         const device = signChallenge(this.identity, nonce, {
           clientId: CLIENT_ID,
+          clientMode: CLIENT_MODE,
           role: CLIENT_ROLE,
           scopes: CLIENT_SCOPES,
           token,
@@ -288,7 +292,7 @@ export class OpenClawClient extends EventEmitter {
               id: CLIENT_ID,
               version: CLIENT_VERSION,
               platform: 'node',
-              mode: CLIENT_ROLE,
+              mode: CLIENT_MODE,
             },
             role: CLIENT_ROLE,
             scopes: CLIENT_SCOPES,
