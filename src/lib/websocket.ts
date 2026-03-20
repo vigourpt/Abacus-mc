@@ -51,12 +51,17 @@ export class OpenClawWebSocket {
     
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(url, {
-          headers: {
-            'X-OpenClaw-Version': PROTOCOL_VERSION.toString(),
-            'X-Device-Id': identity.deviceId,
-          },
-        });
+        const originUrl = process.env.OPENCLAW_ORIGIN_URL || process.env.NEXT_PUBLIC_APP_URL || '';
+        const headers: Record<string, string> = {
+          'X-OpenClaw-Version': PROTOCOL_VERSION.toString(),
+          'X-Device-Id': identity.deviceId,
+          'X-Public-Key': identity.publicKey,
+        };
+        if (originUrl) {
+          headers['Origin'] = originUrl;
+        }
+
+        this.ws = new WebSocket(url, { headers });
 
         this.ws.on('open', () => {
           logger.info({ url }, 'Connected to OpenClaw Gateway');
