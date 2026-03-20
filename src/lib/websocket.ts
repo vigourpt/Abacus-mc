@@ -46,7 +46,8 @@ export class OpenClawWebSocket {
     this.connection.deviceIdentity = identity;
     this.connection.status = 'connecting';
 
-    const url = `ws://${this.connection.host}:${this.connection.port}/v${PROTOCOL_VERSION}/control`;
+    const protocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
+    const url = `${protocol}://${this.connection.host}:${this.connection.port}/v${PROTOCOL_VERSION}/control`;
     
     return new Promise((resolve, reject) => {
       try {

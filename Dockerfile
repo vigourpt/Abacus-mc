@@ -78,6 +78,10 @@ ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_PATH=.data/startup.db
 
+# Health check for container orchestration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget -q --spider http://localhost:3000/api/system/ready || exit 1
+
 EXPOSE 3000
 
 USER nextjs

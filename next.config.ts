@@ -3,9 +3,11 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
   typescript: {
+    // TODO: Set to false once all type errors are resolved
     ignoreBuildErrors: true,
   },
   eslint: {
+    // TODO: Set to false once all lint errors are resolved
     ignoreDuringBuilds: true,
   },
   experimental: {
