@@ -443,13 +443,29 @@ When Mission Control connects to OpenClaw via an internal Docker IP (e.g., `ws:/
 
 The WebSocket client now explicitly sets the `Host` header to match the `Origin` URL's host when `NEXT_PUBLIC_OPENCLAW_ORIGIN_URL` (or `NEXT_PUBLIC_APP_URL`) is configured. No additional user action is needed — just ensure the Origin URL environment variable is set correctly.
 
-If you still see "invalid request frame" errors after setting the Origin URL, verify that both `Origin` and `Host` headers are being sent by checking the Mission Control logs for the WebSocket connection attempt.
+#### "invalid request frame" after Origin/Host fix
+
+OpenClaw Protocol v3 uses a **challenge-response handshake** — not plain HTTP-header-based authentication. The connection flow is:
+
+1. Client opens a WebSocket to the gateway.
+2. Gateway sends `connect.challenge` (contains a `nonce`).
+3. Client signs the nonce with its Ed25519 device key and responds with a `connect` request including protocol versions, client info, role, scopes, and the signed device identity.
+4. Gateway validates the signature and responds with `hello-ok`.
+
+Previous versions of Mission Control sent custom HTTP headers (`X-OpenClaw-Version`, `X-Device-Id`, `X-Public-Key`) and a flat `{type: "auth"}` JSON frame, which the gateway rejects as an "invalid request frame". The updated WebSocket client (`websocket.ts` and `openclaw-client.ts`) now implements the proper challenge-response handshake.
+
+If you still see "invalid request frame" errors:
+- Ensure you are running the latest Mission Control build with the v3 handshake code.
+- Check that `OPENCLAW_GATEWAY_TOKEN` matches the token configured on the gateway (if any).
+- If the gateway requires device pairing, approve the pending device in the OpenClaw Control UI.
+- Increase the handshake timeout by setting `OPENCLAW_HANDSHAKE_TIMEOUT_MS` (default: 15 000 ms), especially in Docker environments where Node.js cold-start can be slow.
 
 #### "OpenClaw connection timeout"
 
 - Verify `OPENCLAW_GATEWAY_HOST` is reachable from the Mission Control server
 - Check firewall rules allow port `18789`
 - If using Docker, ensure the container can reach the OpenClaw host (see Docker deployment section)
+- The v3 handshake timeout is 15 seconds by default; if the gateway is slow to respond, check its logs for `connect.challenge` delivery
 
 #### Dashboard shows no agents
 

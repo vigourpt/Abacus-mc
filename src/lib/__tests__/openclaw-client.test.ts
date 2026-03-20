@@ -41,7 +41,7 @@ describe('OpenClawClient', () => {
       client.disconnect();
     });
 
-    it('should authenticate with Ed25519 signature', async () => {
+    it('should authenticate with v3 challenge-response handshake', async () => {
       const client = new OpenClawClient({
         host: '127.0.0.1',
         port: TEST_PORT,
@@ -51,12 +51,19 @@ describe('OpenClawClient', () => {
       await client.connect();
 
       const history = mockServer.getMessageHistory();
-      const authMessage = history.find(m => m.type === 'auth');
+      // The client should have sent a v3 connect request
+      const connectReq = history.find(
+        (m) => m.type === 'req' && m.method === 'connect',
+      );
 
-      expect(authMessage).toBeDefined();
-      expect(authMessage?.payload).toHaveProperty('deviceId');
-      expect(authMessage?.payload).toHaveProperty('publicKey');
-      expect(authMessage?.payload).toHaveProperty('signature');
+      expect(connectReq).toBeDefined();
+      const params = (connectReq?.params || connectReq?.payload) as {
+        device?: { id: string; publicKey: string; signature: string; nonce: string };
+      };
+      expect(params?.device).toBeDefined();
+      expect(params?.device?.publicKey).toBeDefined();
+      expect(params?.device?.signature).toBeDefined();
+      expect(params?.device?.nonce).toBeDefined();
 
       client.disconnect();
     });
@@ -114,10 +121,14 @@ describe('OpenClawClient', () => {
       });
 
       const history = mockServer.getMessageHistory();
-      const channelMessage = history.find(m => m.type === 'channel_message');
+      // v3: messages are sent as { type: "req", method: "channel_message" }
+      const channelMessage = history.find(
+        (m) => m.method === 'channel_message' || m.type === 'channel_message',
+      );
 
       expect(channelMessage).toBeDefined();
-      expect((channelMessage?.payload as any).content).toBe('Hello, world!');
+      const p = (channelMessage?.params || channelMessage?.payload) as any;
+      expect(p.content).toBe('Hello, world!');
 
       client.disconnect();
     });
@@ -133,10 +144,13 @@ describe('OpenClawClient', () => {
       await client.subscribeToChannel('slack-general');
 
       const history = mockServer.getMessageHistory();
-      const subscribeMessage = history.find(m => m.type === 'channel_subscribe');
+      const subscribeMessage = history.find(
+        (m) => m.method === 'channel_subscribe' || m.type === 'channel_subscribe',
+      );
 
       expect(subscribeMessage).toBeDefined();
-      expect((subscribeMessage?.payload as any).channelId).toBe('slack-general');
+      const p = (subscribeMessage?.params || subscribeMessage?.payload) as any;
+      expect(p.channelId).toBe('slack-general');
 
       client.disconnect();
     });

@@ -1,12 +1,15 @@
 // =====================================================
 // OpenClaw WebSocket Client - Enhanced Connection Manager
 // Phase 3: Full OpenClaw Integration
+//
+// Implements the OpenClaw Protocol v3 challenge-response
+// handshake (connect.challenge → connect → hello-ok).
 // =====================================================
 
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { createChildLogger } from './logger';
-import { getOrCreateDeviceIdentity, createAuthPayload, signMessage } from './device-identity';
+import { getOrCreateDeviceIdentity, signChallenge, signMessage } from './device-identity';
 import {
   getOpenClawConfig,
   getWebSocketUrl,
@@ -17,6 +20,15 @@ import type { DeviceIdentity, GatewayConnection } from '@/types';
 
 const logger = createChildLogger('openclaw-client');
 
+// Client identification sent during the connect handshake
+const CLIENT_ID = 'mission-control';
+const CLIENT_VERSION = '1.0.0';
+const CLIENT_ROLE = 'operator';
+const CLIENT_SCOPES = ['operator.read', 'operator.write'];
+
+/** Timeout (ms) to wait for the full protocol handshake to complete. */
+const HANDSHAKE_TIMEOUT_MS = 15_000;
+
 // Message types from/to OpenClaw
 export interface OpenClawMessage {
   id: string;
@@ -24,9 +36,18 @@ export interface OpenClawMessage {
   payload: unknown;
   timestamp?: number;
   signature?: string;
+  // v3 frame fields
+  method?: string;
+  event?: string;
+  ok?: boolean;
+  params?: unknown;
 }
 
 export type OpenClawMessageType =
+  | 'req'
+  | 'res'
+  | 'event'
+  // Legacy types kept for internal routing
   | 'auth'
   | 'auth_response'
   | 'ping'
@@ -74,10 +95,11 @@ export type ConnectionState =
 /**
  * Enhanced OpenClaw WebSocket Client
  * Features:
+ * - OpenClaw Protocol v3 challenge-response handshake
  * - Connection lifecycle management
  * - Automatic reconnection with exponential backoff
  * - Message queue for offline scenarios
- * - Ed25519 authentication
+ * - Ed25519 device authentication
  * - Heartbeat/ping-pong
  * - Event-based architecture
  */
@@ -104,44 +126,51 @@ export class OpenClawClient extends EventEmitter {
     logger.info({ deviceId: this.identity.deviceId }, 'OpenClaw client initialized');
   }
 
-  /**
-   * Get current connection state
-   */
+  // =====================================================
+  // Public Getters
+  // =====================================================
+
   getState(): ConnectionState {
     return this.state;
   }
 
-  /**
-   * Get connection info
-   */
   getConnectionInfo(): GatewayConnection {
     return {
       id: this.identity.deviceId,
       host: this.config.host,
       port: this.config.port,
-      status: this.state === 'connected' ? 'connected' :
-              this.state === 'connecting' || this.state === 'authenticating' ? 'connecting' :
-              this.state === 'error' ? 'error' : 'disconnected',
+      status:
+        this.state === 'connected'
+          ? 'connected'
+          : this.state === 'connecting' || this.state === 'authenticating'
+            ? 'connecting'
+            : this.state === 'error'
+              ? 'error'
+              : 'disconnected',
       deviceIdentity: this.identity,
     };
   }
 
-  /**
-   * Get current latency
-   */
   getLatency(): number {
     return this.latency;
   }
 
-  /**
-   * Get queue size
-   */
   getQueueSize(): number {
     return this.messageQueue.length;
   }
 
+  // =====================================================
+  // Connect – OpenClaw Protocol v3 Handshake
+  // =====================================================
+
   /**
-   * Connect to OpenClaw gateway
+   * Connect to OpenClaw gateway.
+   *
+   * Protocol v3 flow:
+   *  1. Open a WebSocket to the gateway endpoint.
+   *  2. Gateway sends  { type:"event", event:"connect.challenge", payload:{ nonce, ts } }
+   *  3. Client replies { type:"req", id, method:"connect", params:{ …device, auth… } }
+   *  4. Gateway sends  { type:"res", id, ok:true, payload:{ type:"hello-ok", … } }
    */
   async connect(): Promise<void> {
     if (this.state === 'connected' || this.state === 'connecting') {
@@ -154,70 +183,61 @@ export class OpenClawClient extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       try {
-        // Use NEXT_PUBLIC_ prefix so the value is available at runtime (not just build time)
-        // Next.js inlines non-NEXT_PUBLIC_ env vars at build time, so OPENCLAW_ORIGIN_URL
-        // would be empty if not set during `next build`. NEXT_PUBLIC_OPENCLAW_ORIGIN_URL
-        // is embedded in the bundle and also accessible server-side at runtime.
-        const originUrl = process.env.NEXT_PUBLIC_OPENCLAW_ORIGIN_URL || process.env.NEXT_PUBLIC_APP_URL || '';
+        // Build minimal HTTP headers for the upgrade request.
+        // Authentication happens inside WebSocket frames, not HTTP headers.
+        const originUrl =
+          process.env.NEXT_PUBLIC_OPENCLAW_ORIGIN_URL ||
+          process.env.NEXT_PUBLIC_APP_URL ||
+          '';
         const headers: Record<string, string> = {
-          'X-OpenClaw-Version': OPENCLAW_PROTOCOL_VERSION.toString(),
-          'X-Device-Id': this.identity.deviceId,
-          'X-Public-Key': this.identity.publicKey,
+          'User-Agent': `${CLIENT_ID}/${CLIENT_VERSION}`,
         };
         if (originUrl) {
           headers['Origin'] = originUrl;
-          // Set Host header to match Origin so OpenClaw doesn't reject
-          // the connection due to Host/Origin mismatch (e.g. internal
-          // Docker IP vs public URL).
           const urlObj = new URL(originUrl);
           headers['Host'] = urlObj.host;
         }
 
         this.ws = new WebSocket(url, { headers });
 
-        const connectionTimeout = setTimeout(() => {
-          if (this.state === 'connecting') {
-            this.handleError(new Error('Connection timeout'));
-            reject(new Error('Connection timeout'));
+        const handshakeTimeout = setTimeout(() => {
+          if (this.state === 'connecting' || this.state === 'authenticating') {
+            this.handleError(new Error('OpenClaw handshake timeout'));
+            reject(new Error('OpenClaw handshake timeout'));
           }
-        }, 10000);
+        }, HANDSHAKE_TIMEOUT_MS);
 
         this.ws.on('open', () => {
-          clearTimeout(connectionTimeout);
-          logger.info({ url }, 'WebSocket connected, authenticating...');
+          logger.info({ url }, 'WebSocket open, waiting for connect.challenge…');
           this.state = 'authenticating';
-          this.authenticate()
-            .then(() => {
-              this.state = 'connected';
-              this.reconnectAttempts = 0;
-              this.startPingLoop();
-              this.drainQueue();
-              this.emit('connected');
-              resolve();
-            })
-            .catch((error) => {
-              this.handleError(error as Error);
-              reject(error);
-            });
+          // Do NOT resolve yet – wait for the handshake to complete.
         });
 
         this.ws.on('message', (data) => {
-          this.handleMessage(data.toString());
+          const raw = data.toString();
+
+          // During handshake, intercept protocol frames
+          if (this.state === 'authenticating' || this.state === 'connecting') {
+            this.handleHandshakeFrame(raw, handshakeTimeout, resolve, reject);
+            return;
+          }
+
+          // Post-handshake: normal message handling
+          this.handleMessage(raw);
         });
 
         this.ws.on('close', (code, reason) => {
-          clearTimeout(connectionTimeout);
+          clearTimeout(handshakeTimeout);
           this.handleDisconnect(code, reason.toString());
         });
 
         this.ws.on('error', (error) => {
-          clearTimeout(connectionTimeout);
-          if (this.state === 'connecting') {
+          clearTimeout(handshakeTimeout);
+          if (this.state === 'connecting' || this.state === 'authenticating') {
             reject(error);
           }
           this.handleError(error as Error);
         });
-
       } catch (error) {
         this.handleError(error as Error);
         reject(error);
@@ -226,8 +246,127 @@ export class OpenClawClient extends EventEmitter {
   }
 
   /**
-   * Disconnect from gateway
+   * Handle a single frame during the challenge-response handshake.
    */
+  private handleHandshakeFrame(
+    raw: string,
+    handshakeTimeout: NodeJS.Timeout,
+    resolve: () => void,
+    reject: (err: Error) => void,
+  ): void {
+    try {
+      const frame = JSON.parse(raw);
+
+      // Step 2: Gateway sends connect.challenge
+      if (frame.type === 'event' && frame.event === 'connect.challenge') {
+        const { nonce } = frame.payload as { nonce: string; ts: number };
+        logger.info('Received connect.challenge, signing nonce…');
+
+        const token = process.env.OPENCLAW_GATEWAY_TOKEN || undefined;
+
+        const device = signChallenge(this.identity, nonce, {
+          clientId: CLIENT_ID,
+          role: CLIENT_ROLE,
+          scopes: CLIENT_SCOPES,
+          token,
+        });
+
+        const connectId = this.generateMessageId();
+
+        // Step 3: Send connect request
+        const connectReq = {
+          type: 'req',
+          id: connectId,
+          method: 'connect',
+          params: {
+            minProtocol: OPENCLAW_PROTOCOL_VERSION,
+            maxProtocol: OPENCLAW_PROTOCOL_VERSION,
+            client: {
+              id: CLIENT_ID,
+              version: CLIENT_VERSION,
+              platform: 'node',
+              mode: CLIENT_ROLE,
+            },
+            role: CLIENT_ROLE,
+            scopes: CLIENT_SCOPES,
+            caps: [],
+            commands: [],
+            permissions: {},
+            auth: token ? { token } : {},
+            locale: 'en-US',
+            userAgent: `${CLIENT_ID}/${CLIENT_VERSION}`,
+            device,
+          },
+        };
+
+        this.sendRaw(connectReq as unknown as OpenClawMessage);
+        logger.info({ connectId }, 'Sent connect request');
+        return;
+      }
+
+      // Step 4: Gateway responds with hello-ok
+      if (
+        frame.type === 'res' &&
+        frame.ok === true &&
+        (frame.payload as { type?: string })?.type === 'hello-ok'
+      ) {
+        clearTimeout(handshakeTimeout);
+        this.state = 'connected';
+        this.reconnectAttempts = 0;
+
+        // If gateway issued a device token, we could persist it here.
+        const helloPayload = frame.payload as {
+          protocol?: number;
+          auth?: { deviceToken?: string };
+        };
+        if (helloPayload?.auth?.deviceToken) {
+          logger.info('Gateway issued device token (persisting not yet implemented)');
+        }
+
+        logger.info(
+          { protocol: helloPayload?.protocol },
+          'OpenClaw handshake complete (hello-ok)',
+        );
+
+        this.startPingLoop();
+        this.drainQueue();
+        this.emit('connected');
+        this.emit('authenticated');
+        resolve();
+        return;
+      }
+
+      // Gateway rejects handshake
+      if (frame.type === 'res' && frame.ok === false) {
+        clearTimeout(handshakeTimeout);
+        const errPayload = frame.payload as {
+          message?: string;
+          code?: string;
+        } | undefined;
+        const msg =
+          errPayload?.message ||
+          errPayload?.code ||
+          'Handshake rejected by gateway';
+        const err = new Error(msg);
+        logger.error({ payload: frame.payload }, 'Handshake error from gateway');
+        this.state = 'error';
+        this.emit('authError', err);
+        this.ws?.close();
+        reject(err);
+        return;
+      }
+
+      // Unknown frame during handshake – log and continue
+      logger.warn({ frame }, 'Unexpected frame during handshake');
+    } catch (parseErr) {
+      logger.error({ error: parseErr, raw }, 'Failed to parse handshake frame');
+    }
+  }
+
+  // =====================================================
+  // Disconnect
+  // =====================================================
+
   disconnect(): void {
     this.clearTimers();
     this.reconnectAttempts = this.config.maxReconnectAttempts; // Prevent reconnection
@@ -242,14 +381,28 @@ export class OpenClawClient extends EventEmitter {
     logger.info('Disconnected from OpenClaw gateway');
   }
 
+  // =====================================================
+  // Sending Messages (post-handshake)
+  // =====================================================
+
   /**
-   * Send a message to the gateway
+   * Send a message to the gateway using v3 frame format.
+   *
+   * For v3, messages are wrapped as:
+   *   { type: "req", id, method: <type>, params: <payload> }
+   * so the gateway can route them correctly.
    */
-  async send(type: OpenClawMessageType, payload: unknown, waitForResponse = false): Promise<unknown> {
+  async send(
+    type: OpenClawMessageType,
+    payload: unknown,
+    waitForResponse = false,
+  ): Promise<unknown> {
     const message: OpenClawMessage = {
       id: this.generateMessageId(),
-      type,
+      type: 'req',
+      method: type as string,
       payload,
+      params: payload,
       timestamp: Date.now(),
     };
 
@@ -258,35 +411,28 @@ export class OpenClawClient extends EventEmitter {
       message.signature = signMessage(JSON.stringify(payload), this.identity);
     }
 
-    // If connected, send immediately
     if (this.state === 'connected' && this.ws?.readyState === WebSocket.OPEN) {
       return this.sendImmediate(message, waitForResponse);
     }
 
-    // Otherwise, queue the message
     return this.queueMessage(message);
   }
 
-  /**
-   * Subscribe to a channel
-   */
   async subscribeToChannel(channelId: string): Promise<void> {
     await this.send('channel_subscribe', { channelId });
     logger.info({ channelId }, 'Subscribed to channel');
   }
 
-  /**
-   * Unsubscribe from a channel
-   */
   async unsubscribeFromChannel(channelId: string): Promise<void> {
     await this.send('channel_unsubscribe', { channelId });
     logger.info({ channelId }, 'Unsubscribed from channel');
   }
 
-  /**
-   * Send a message to a channel
-   */
-  async sendToChannel(channelId: string, content: string, metadata?: Record<string, unknown>): Promise<void> {
+  async sendToChannel(
+    channelId: string,
+    content: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     await this.send('channel_message', {
       channelId,
       content,
@@ -295,9 +441,6 @@ export class OpenClawClient extends EventEmitter {
     });
   }
 
-  /**
-   * Sync an agent to OpenClaw
-   */
   async syncAgent(agent: {
     slug: string;
     name: string;
@@ -309,53 +452,18 @@ export class OpenClawClient extends EventEmitter {
   }
 
   // =====================================================
-  // Private Methods
+  // Private – Message Handling
   // =====================================================
-
-  private async authenticate(): Promise<void> {
-    const authPayload = createAuthPayload(this.identity);
-    
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Authentication timeout'));
-      }, 10000);
-
-      const authHandler = (message: OpenClawMessage) => {
-        if (message.type === 'auth_response') {
-          clearTimeout(timeout);
-          this.off('message', authHandler);
-          
-          const response = message.payload as { success: boolean; error?: string };
-          if (response.success) {
-            logger.info('Authentication successful');
-            this.emit('authenticated');
-            resolve();
-          } else {
-            const error = new Error(response.error || 'Authentication failed');
-            this.emit('authError', error);
-            reject(error);
-          }
-        }
-      };
-
-      this.on('message', authHandler);
-
-      // Send auth message
-      this.sendRaw({
-        id: this.generateMessageId(),
-        type: 'auth',
-        payload: authPayload,
-        timestamp: Date.now(),
-      });
-    });
-  }
 
   private handleMessage(data: string): void {
     try {
       const message = JSON.parse(data) as OpenClawMessage;
 
-      // Handle pong messages
-      if (message.type === 'pong') {
+      // Handle pong / ping responses
+      if (
+        message.type === 'pong' ||
+        (message.type === 'event' && message.event === 'pong')
+      ) {
         this.handlePong();
         return;
       }
@@ -371,26 +479,42 @@ export class OpenClawClient extends EventEmitter {
       // Emit general message event
       this.emit('message', message);
 
-      // Handle specific message types
-      switch (message.type) {
-        case 'channel_message':
-          const channelPayload = message.payload as { channelId: string };
-          this.emit('channelMessage', channelPayload.channelId, message.payload);
-          break;
-        case 'error':
-          const errorPayload = message.payload as { message: string };
-          logger.error({ payload: message.payload }, 'Server error');
-          this.emit('error', new Error(errorPayload.message));
-          break;
-        case 'system':
-          logger.info({ payload: message.payload }, 'System message');
-          break;
+      // Handle specific event types
+      if (message.type === 'event') {
+        switch (message.event) {
+          case 'channel_message': {
+            const channelPayload = message.payload as { channelId: string };
+            this.emit('channelMessage', channelPayload.channelId, message.payload);
+            break;
+          }
+          case 'error': {
+            const errorPayload = message.payload as { message: string };
+            logger.error({ payload: message.payload }, 'Server error');
+            this.emit('error', new Error(errorPayload.message));
+            break;
+          }
+          case 'system':
+            logger.info({ payload: message.payload }, 'System message');
+            break;
+        }
       }
 
+      // Handle res-type frames (responses to our requests)
+      if (message.type === 'res') {
+        if (message.ok === false) {
+          const errPayload = message.payload as { message?: string };
+          logger.error({ payload: message.payload }, 'Request error response');
+          this.emit('error', new Error(errPayload?.message || 'Request failed'));
+        }
+      }
     } catch (error) {
       logger.error({ error, data }, 'Failed to parse message');
     }
   }
+
+  // =====================================================
+  // Private – Connection Lifecycle
+  // =====================================================
 
   private handleDisconnect(code: number, reason: string): void {
     this.clearTimers();
@@ -400,7 +524,6 @@ export class OpenClawClient extends EventEmitter {
     logger.info({ code, reason }, 'Disconnected from gateway');
     this.emit('disconnected', reason);
 
-    // Attempt reconnection if it was an unexpected disconnect
     if (wasConnected && this.reconnectAttempts < this.config.maxReconnectAttempts) {
       this.scheduleReconnect();
     }
@@ -418,12 +541,12 @@ export class OpenClawClient extends EventEmitter {
     this.reconnectAttempts++;
     const delay = Math.min(
       this.config.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1),
-      60000
+      60000,
     );
 
     logger.info(
       { attempt: this.reconnectAttempts, delay },
-      'Scheduling reconnection'
+      'Scheduling reconnection',
     );
 
     this.state = 'reconnecting';
@@ -444,8 +567,14 @@ export class OpenClawClient extends EventEmitter {
     this.pingTimer = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.lastPingTime = Date.now();
-        this.sendRaw({ id: 'ping', type: 'ping', payload: { timestamp: this.lastPingTime } });
-        
+        this.sendRaw({
+          id: this.generateMessageId(),
+          type: 'req',
+          method: 'ping',
+          payload: { timestamp: this.lastPingTime },
+          params: { timestamp: this.lastPingTime },
+        } as OpenClawMessage);
+
         // Set pong timeout
         this.pongTimer = setTimeout(() => {
           logger.warn('Pong timeout, connection may be stale');
@@ -478,13 +607,20 @@ export class OpenClawClient extends EventEmitter {
     }
   }
 
+  // =====================================================
+  // Private – Send Helpers
+  // =====================================================
+
   private sendRaw(message: OpenClawMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     }
   }
 
-  private async sendImmediate(message: OpenClawMessage, waitForResponse: boolean): Promise<unknown> {
+  private async sendImmediate(
+    message: OpenClawMessage,
+    waitForResponse: boolean,
+  ): Promise<unknown> {
     if (waitForResponse) {
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -531,7 +667,7 @@ export class OpenClawClient extends EventEmitter {
 
       logger.debug(
         { queueSize: this.messageQueue.length },
-        'Message queued for later delivery'
+        'Message queued for later delivery',
       );
     });
   }
@@ -541,7 +677,7 @@ export class OpenClawClient extends EventEmitter {
 
     logger.info(
       { count: this.messageQueue.length },
-      'Draining message queue'
+      'Draining message queue',
     );
 
     const queue = [...this.messageQueue];
@@ -570,19 +706,15 @@ export class OpenClawClient extends EventEmitter {
 // Singleton instance
 let clientInstance: OpenClawClient | null = null;
 
-/**
- * Get or create OpenClaw client instance
- */
-export function getOpenClawClient(config?: Partial<OpenClawConnectionConfig>): OpenClawClient {
+export function getOpenClawClient(
+  config?: Partial<OpenClawConnectionConfig>,
+): OpenClawClient {
   if (!clientInstance) {
     clientInstance = new OpenClawClient(config);
   }
   return clientInstance;
 }
 
-/**
- * Reset client instance (for testing)
- */
 export function resetOpenClawClient(): void {
   if (clientInstance) {
     clientInstance.disconnect();

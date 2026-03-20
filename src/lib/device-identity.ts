@@ -407,6 +407,7 @@ export function verifySignature(
 
 /**
  * Create authentication payload for OpenClaw Gateway
+ * (Legacy format – kept for backwards compatibility with older gateways)
  */
 export function createAuthPayload(identity: DeviceIdentity): {
   deviceId: string;
@@ -423,5 +424,83 @@ export function createAuthPayload(identity: DeviceIdentity): {
     publicKey: identity.publicKey,
     timestamp,
     signature,
+  };
+}
+
+// =====================================================
+// OpenClaw Protocol v3 Challenge-Response Helpers
+// =====================================================
+
+/**
+ * Build the v3 signature payload from the challenge nonce and connection params.
+ *
+ * OpenClaw v3 "preferred signature payload" binds:
+ *   deviceId + clientId + role + scopes (sorted, joined) + nonce + token (if any)
+ * This mirrors what the official CLI / web UI sends.
+ */
+function buildV3SignaturePayload(params: {
+  deviceId: string;
+  clientId: string;
+  role: string;
+  scopes: string[];
+  nonce: string;
+  token?: string;
+}): string {
+  const scopeStr = [...params.scopes].sort().join(',');
+  const parts = [
+    params.deviceId,
+    params.clientId,
+    params.role,
+    scopeStr,
+    params.nonce,
+  ];
+  if (params.token) {
+    parts.push(params.token);
+  }
+  return parts.join(':');
+}
+
+/**
+ * Sign an OpenClaw v3 `connect.challenge` nonce and produce the `device` block
+ * required by the `connect` request.
+ *
+ * @param identity  Current device identity (keys + deviceId)
+ * @param nonce     The nonce string received in the `connect.challenge` event
+ * @param options   Connection parameters (clientId, role, scopes, token)
+ * @returns         The `device` object to embed in `connect` params
+ */
+export function signChallenge(
+  identity: DeviceIdentity,
+  nonce: string,
+  options: {
+    clientId: string;
+    role: string;
+    scopes: string[];
+    token?: string;
+  },
+): {
+  id: string;
+  publicKey: string;
+  signature: string;
+  signedAt: number;
+  nonce: string;
+} {
+  const signedAt = Date.now();
+  const payload = buildV3SignaturePayload({
+    deviceId: identity.deviceId,
+    clientId: options.clientId,
+    role: options.role,
+    scopes: options.scopes,
+    nonce,
+    token: options.token,
+  });
+  const signature = signMessage(payload, identity);
+
+  return {
+    id: identity.deviceId,
+    publicKey: identity.publicKey,
+    signature,
+    signedAt,
+    nonce,
   };
 }
