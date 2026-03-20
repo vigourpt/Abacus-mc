@@ -85,6 +85,8 @@ Open [http://localhost:3000](http://localhost:3000)
 | `OPENCLAW_GATEWAY_HOST` | — | Gateway hostname or IP address |
 | `OPENCLAW_GATEWAY_PORT` | `18789` | Gateway port |
 | `OPENCLAW_GATEWAY_TOKEN` | — | Gateway authentication token |
+| `OPENCLAW_ORIGIN_URL` | — | Origin URL sent in WebSocket headers (required for remote OpenClaw). Falls back to `NEXT_PUBLIC_APP_URL` |
+| `NEXT_PUBLIC_APP_URL` | — | Public URL of this Mission Control instance |
 | `OPENCLAW_PRIVATE_KEY` | — | Ed25519 private key (inline PEM or base64 raw). Use `\n` for newlines |
 | `OPENCLAW_PRIVATE_KEY_PATH` | — | Path to Ed25519 PEM private key file (alternative to inline) |
 | `OPENCLAW_CONFIG_PATH` | — | Path to `openclaw.json` config file |
@@ -421,6 +423,17 @@ OpenClaw uses Ed25519 PEM keys, but nacl expects raw 64-byte keys. Mission Contr
 3. If using inline env var, replace actual newlines with `\n`: `"-----BEGIN PRIVATE KEY-----\nMC4C...\n-----END PRIVATE KEY-----"`
 4. Verify the key works: `openssl pkey -in your-key.pem -noout` (should print no errors)
 5. Check logs for `Extracted Ed25519 seed from PKCS#8 PEM` to confirm conversion
+
+#### "OpenClaw rejects WebSocket (missing Origin header)"
+
+OpenClaw requires an `Origin` header on all WebSocket connections. Set the `OPENCLAW_ORIGIN_URL` environment variable to your Mission Control public URL:
+
+```bash
+# In .env
+OPENCLAW_ORIGIN_URL=https://mission-control.srv1506055.hstgr.cloud
+```
+
+If `OPENCLAW_ORIGIN_URL` is not set, the client falls back to `NEXT_PUBLIC_APP_URL`. If neither is set, the Origin header is omitted and OpenClaw will reject the connection.
 
 #### "OpenClaw connection timeout"
 

@@ -154,13 +154,17 @@ export class OpenClawClient extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(url, {
-          headers: {
-            'X-OpenClaw-Version': OPENCLAW_PROTOCOL_VERSION.toString(),
-            'X-Device-Id': this.identity.deviceId,
-            'X-Public-Key': this.identity.publicKey,
-          },
-        });
+        const originUrl = process.env.OPENCLAW_ORIGIN_URL || process.env.NEXT_PUBLIC_APP_URL || '';
+        const headers: Record<string, string> = {
+          'X-OpenClaw-Version': OPENCLAW_PROTOCOL_VERSION.toString(),
+          'X-Device-Id': this.identity.deviceId,
+          'X-Public-Key': this.identity.publicKey,
+        };
+        if (originUrl) {
+          headers['Origin'] = originUrl;
+        }
+
+        this.ws = new WebSocket(url, { headers });
 
         const connectionTimeout = setTimeout(() => {
           if (this.state === 'connecting') {
