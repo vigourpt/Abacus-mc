@@ -14,8 +14,11 @@ const logger = createChildLogger('websocket');
 // Protocol version for OpenClaw 2026.x
 const PROTOCOL_VERSION = 3;
 
-// Client identification sent during the connect handshake
-const CLIENT_ID = 'mission-control';
+// Client identification sent during the connect handshake.
+// OpenClaw validates client.id against a whitelist of known constants.
+// "openclaw-control-ui" is the standard control-plane client identifier.
+// Override via OPENCLAW_CLIENT_ID env var if your gateway uses a different value.
+const CLIENT_ID = process.env.OPENCLAW_CLIENT_ID || 'openclaw-control-ui';
 const CLIENT_VERSION = '1.0.0';
 const CLIENT_ROLE = 'operator';
 const CLIENT_SCOPES = ['operator.read', 'operator.write'];
