@@ -18,7 +18,7 @@ export function GatewaysPanel() {
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newGateway, setNewGateway] = useState({ name: '', host: '', port: '8080' });
+  const [newGateway, setNewGateway] = useState({ name: '', host: '', port: '18789' });
   const [error, setError] = useState<string | null>(null);
 
   const fetchGateways = useCallback(async () => {
@@ -101,14 +101,14 @@ export function GatewaysPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           host: newGateway.host.trim(),
-          port: parseInt(newGateway.port) || 8080,
+          port: parseInt(newGateway.port) || 18789,
           name: newGateway.name.trim() || undefined,
         }),
       });
 
       if (res.ok) {
         setShowAddForm(false);
-        setNewGateway({ name: '', host: '', port: '8080' });
+        setNewGateway({ name: '', host: '', port: '18789' });
         fetchGateways();
       } else {
         setError('Failed to add gateway');

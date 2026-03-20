@@ -47,11 +47,10 @@ export async function POST(request: NextRequest) {
       VALUES (?, ?, ?, 'disconnected')
     `);
 
-    stmt.run(
-      id,
-      body.host || '127.0.0.1',
-      body.port || 18789
-    );
+    const host = body.host || process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1';
+    const port = body.port || parseInt(process.env.OPENCLAW_GATEWAY_PORT || '18789');
+
+    stmt.run(id, host, port);
 
     const getStmt = db.prepare('SELECT * FROM gateway_connections WHERE id = ?');
     const row = getStmt.get(id) as GatewayRow;
