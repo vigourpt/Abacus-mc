@@ -1,16 +1,27 @@
 // =====================================================
 // WebSocket Client for OpenClaw Gateway
+// Implements the OpenClaw Protocol v3 challenge-response
+// handshake (connect.challenge → connect → hello-ok).
 // =====================================================
 
 import WebSocket from 'ws';
 import { createChildLogger } from './logger';
-import { getOrCreateDeviceIdentity, createAuthPayload } from './device-identity';
+import { getOrCreateDeviceIdentity, signChallenge } from './device-identity';
 import type { GatewayConnection, RealtimeEvent } from '@/types';
 
 const logger = createChildLogger('websocket');
 
 // Protocol version for OpenClaw 2026.x
 const PROTOCOL_VERSION = 3;
+
+// Client identification sent during the connect handshake
+const CLIENT_ID = 'mission-control';
+const CLIENT_VERSION = '1.0.0';
+const CLIENT_ROLE = 'operator';
+const CLIENT_SCOPES = ['operator.read', 'operator.write'];
+
+/** Timeout (ms) to wait for the full handshake to complete. */
+const HANDSHAKE_TIMEOUT_MS = 15_000;
 
 export type EventHandler = (event: RealtimeEvent) => void;
 
@@ -20,6 +31,7 @@ export class OpenClawWebSocket {
   private pingInterval: NodeJS.Timeout | null = null;
   private eventHandlers: EventHandler[] = [];
   private connection: GatewayConnection;
+  private messageCounter = 0;
 
   constructor(
     host: string = process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1',
@@ -34,7 +46,13 @@ export class OpenClawWebSocket {
   }
 
   /**
-   * Connect to OpenClaw Gateway
+   * Connect to OpenClaw Gateway using the v3 challenge-response handshake.
+   *
+   * Flow:
+   *  1. Open a WebSocket to the gateway.
+   *  2. Gateway sends  { type: "event", event: "connect.challenge", payload: { nonce, ts } }
+   *  3. Client responds { type: "req", id, method: "connect", params: { ... device, auth ... } }
+   *  4. Gateway replies  { type: "res", id, ok: true, payload: { type: "hello-ok", ... } }
    */
   async connect(): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -48,56 +66,160 @@ export class OpenClawWebSocket {
 
     const protocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
     const url = `${protocol}://${this.connection.host}:${this.connection.port}/v${PROTOCOL_VERSION}/control`;
-    
+
     return new Promise((resolve, reject) => {
       try {
-        // Use NEXT_PUBLIC_ prefix so the value is available at runtime (not just build time)
-        // Next.js inlines non-NEXT_PUBLIC_ env vars at build time, so OPENCLAW_ORIGIN_URL
-        // would be empty if not set during `next build`. NEXT_PUBLIC_OPENCLAW_ORIGIN_URL
-        // is embedded in the bundle and also accessible server-side at runtime.
-        const originUrl = process.env.NEXT_PUBLIC_OPENCLAW_ORIGIN_URL || process.env.NEXT_PUBLIC_APP_URL || '';
+        // Build minimal headers – only Origin and Host are needed for the
+        // HTTP upgrade; authentication happens inside the WS frames.
+        const originUrl =
+          process.env.NEXT_PUBLIC_OPENCLAW_ORIGIN_URL ||
+          process.env.NEXT_PUBLIC_APP_URL ||
+          '';
         const headers: Record<string, string> = {
-          'X-OpenClaw-Version': PROTOCOL_VERSION.toString(),
-          'X-Device-Id': identity.deviceId,
-          'X-Public-Key': identity.publicKey,
+          'User-Agent': `${CLIENT_ID}/${CLIENT_VERSION}`,
         };
         if (originUrl) {
           headers['Origin'] = originUrl;
-          // Set Host header to match Origin so OpenClaw doesn't reject
-          // the connection due to Host/Origin mismatch (e.g. internal
-          // Docker IP vs public URL).
           const urlObj = new URL(originUrl);
           headers['Host'] = urlObj.host;
         }
 
         this.ws = new WebSocket(url, { headers });
 
+        // Overall handshake timeout
+        const handshakeTimeout = setTimeout(() => {
+          if (
+            this.connection.status === 'connecting' ||
+            this.connection.status === 'connected' /* still waiting for hello-ok */
+          ) {
+            const err = new Error('OpenClaw handshake timeout');
+            logger.error({ url }, err.message);
+            this.connection.status = 'error';
+            this.ws?.close();
+            reject(err);
+          }
+        }, HANDSHAKE_TIMEOUT_MS);
+
         this.ws.on('open', () => {
-          logger.info({ url }, 'Connected to OpenClaw Gateway');
-          this.connection.status = 'connected';
-          this.connection.lastConnected = new Date();
-          
-          // Send authentication
-          this.authenticate(identity);
-          
-          // Start ping interval
-          this.startPing();
-          
-          resolve();
+          logger.info({ url }, 'WebSocket open, waiting for connect.challenge…');
+          // Don't resolve yet – wait for the full handshake to complete.
         });
 
         this.ws.on('message', (data) => {
-          this.handleMessage(data.toString());
+          const raw = data.toString();
+
+          // During the handshake we intercept protocol frames.
+          if (this.connection.status === 'connecting') {
+            try {
+              const frame = JSON.parse(raw);
+
+              // Step 2: Gateway sends connect.challenge
+              if (
+                frame.type === 'event' &&
+                frame.event === 'connect.challenge'
+              ) {
+                const { nonce } = frame.payload as { nonce: string; ts: number };
+                logger.info('Received connect.challenge, signing nonce…');
+
+                const token =
+                  process.env.OPENCLAW_GATEWAY_TOKEN || undefined;
+
+                const device = signChallenge(identity, nonce, {
+                  clientId: CLIENT_ID,
+                  role: CLIENT_ROLE,
+                  scopes: CLIENT_SCOPES,
+                  token,
+                });
+
+                const connectId = this.nextMessageId();
+
+                // Step 3: Send connect request
+                const connectReq = {
+                  type: 'req',
+                  id: connectId,
+                  method: 'connect',
+                  params: {
+                    minProtocol: PROTOCOL_VERSION,
+                    maxProtocol: PROTOCOL_VERSION,
+                    client: {
+                      id: CLIENT_ID,
+                      version: CLIENT_VERSION,
+                      platform: 'node',
+                      mode: CLIENT_ROLE,
+                    },
+                    role: CLIENT_ROLE,
+                    scopes: CLIENT_SCOPES,
+                    caps: [],
+                    commands: [],
+                    permissions: {},
+                    auth: token ? { token } : {},
+                    locale: 'en-US',
+                    userAgent: `${CLIENT_ID}/${CLIENT_VERSION}`,
+                    device,
+                  },
+                };
+
+                this.ws?.send(JSON.stringify(connectReq));
+                logger.info({ connectId }, 'Sent connect request');
+                return;
+              }
+
+              // Step 4: Gateway responds with hello-ok
+              if (
+                frame.type === 'res' &&
+                frame.ok === true &&
+                (frame.payload as { type?: string })?.type === 'hello-ok'
+              ) {
+                clearTimeout(handshakeTimeout);
+                this.connection.status = 'connected';
+                this.connection.lastConnected = new Date();
+                logger.info(
+                  { protocol: (frame.payload as { protocol?: number }).protocol },
+                  'OpenClaw handshake complete (hello-ok)',
+                );
+                this.startPing();
+                resolve();
+                return;
+              }
+
+              // If the gateway sends an error response during handshake
+              if (frame.type === 'res' && frame.ok === false) {
+                clearTimeout(handshakeTimeout);
+                const errPayload = frame.payload as { message?: string; code?: string } | undefined;
+                const msg = errPayload?.message || errPayload?.code || 'Handshake rejected by gateway';
+                const err = new Error(msg);
+                logger.error({ payload: frame.payload }, 'Handshake error from gateway');
+                this.connection.status = 'error';
+                this.ws?.close();
+                reject(err);
+                return;
+              }
+
+              // Unknown frame during handshake – log but continue waiting
+              logger.warn({ frame }, 'Unexpected frame during handshake');
+            } catch (parseErr) {
+              logger.error({ error: parseErr, raw }, 'Failed to parse handshake frame');
+            }
+            return;
+          }
+
+          // After handshake – normal message handling
+          this.handleMessage(raw);
         });
 
         this.ws.on('close', (code, reason) => {
-          logger.info({ code, reason: reason.toString() }, 'Disconnected from gateway');
+          clearTimeout(handshakeTimeout);
+          logger.info(
+            { code, reason: reason.toString() },
+            'Disconnected from gateway',
+          );
           this.connection.status = 'disconnected';
           this.cleanup();
           this.scheduleReconnect();
         });
 
         this.ws.on('error', (error) => {
+          clearTimeout(handshakeTimeout);
           logger.error({ error }, 'WebSocket error');
           this.connection.status = 'error';
           reject(error);
@@ -110,37 +232,29 @@ export class OpenClawWebSocket {
     });
   }
 
-  /**
-   * Send authentication payload
-   */
-  private authenticate(identity: ReturnType<typeof getOrCreateDeviceIdentity>): void {
-    const authPayload = createAuthPayload(identity);
-    this.send({
-      type: 'auth',
-      payload: authPayload,
-    });
-  }
+  // =====================================================
+  // Message Handling (post-handshake)
+  // =====================================================
 
   /**
-   * Handle incoming message
+   * Handle incoming message after the handshake is complete.
    */
   private handleMessage(data: string): void {
     try {
       const message = JSON.parse(data);
-      
+
       // Handle pong
-      if (message.type === 'pong') {
+      if (message.type === 'pong' || (message.type === 'event' && message.event === 'pong')) {
         return;
       }
 
-      // Create event
+      // Create event for subscribers
       const event: RealtimeEvent = {
-        type: message.type,
+        type: message.type === 'event' ? message.event : message.type,
         payload: message.payload,
         timestamp: new Date(),
       };
 
-      // Notify handlers
       this.eventHandlers.forEach((handler) => handler(event));
     } catch (error) {
       logger.error({ error, data }, 'Failed to parse message');
@@ -148,7 +262,8 @@ export class OpenClawWebSocket {
   }
 
   /**
-   * Send message to gateway
+   * Send a message to gateway (post-handshake).
+   * Uses the v3 frame format: { type: "req", id, method, params }.
    */
   send(message: Record<string, unknown>): void {
     if (this.ws?.readyState !== WebSocket.OPEN) {
@@ -160,17 +275,24 @@ export class OpenClawWebSocket {
   }
 
   /**
-   * Start ping interval
+   * Send a v3 "req" frame.
    */
+  sendRequest(method: string, params: Record<string, unknown> = {}): string {
+    const id = this.nextMessageId();
+    this.send({ type: 'req', id, method, params });
+    return id;
+  }
+
+  // =====================================================
+  // Ping / Reconnect / Lifecycle
+  // =====================================================
+
   private startPing(): void {
     this.pingInterval = setInterval(() => {
-      this.send({ type: 'ping', timestamp: Date.now() });
+      this.send({ type: 'req', id: this.nextMessageId(), method: 'ping', params: { timestamp: Date.now() } });
     }, 30000);
   }
 
-  /**
-   * Schedule reconnection
-   */
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
 
@@ -182,9 +304,6 @@ export class OpenClawWebSocket {
     }, 5000);
   }
 
-  /**
-   * Cleanup timers
-   */
   private cleanup(): void {
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
@@ -192,9 +311,6 @@ export class OpenClawWebSocket {
     }
   }
 
-  /**
-   * Subscribe to events
-   */
   subscribe(handler: EventHandler): () => void {
     this.eventHandlers.push(handler);
     return () => {
@@ -202,30 +318,25 @@ export class OpenClawWebSocket {
     };
   }
 
-  /**
-   * Disconnect from gateway
-   */
   disconnect(): void {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-
     this.cleanup();
-
     if (this.ws) {
-      this.ws.close();
+      this.ws.close(1000, 'Client disconnecting');
       this.ws = null;
     }
-
     this.connection.status = 'disconnected';
   }
 
-  /**
-   * Get connection status
-   */
   getConnection(): GatewayConnection {
     return { ...this.connection };
+  }
+
+  private nextMessageId(): string {
+    return `msg-${++this.messageCounter}-${Date.now()}`;
   }
 }
 
