@@ -460,6 +460,21 @@ If you still see "invalid request frame" errors:
 - If the gateway requires device pairing, approve the pending device in the OpenClaw Control UI.
 - Increase the handshake timeout by setting `OPENCLAW_HANDSHAKE_TIMEOUT_MS` (default: 15 000 ms), especially in Docker environments where Node.js cold-start can be slow.
 
+#### "invalid connect params: at /client/id: must be equal to constant"
+
+OpenClaw validates the `client.id` field in the connect request against a whitelist of known client identifiers. The default value `openclaw-control-ui` is the standard control-plane client ID. If your gateway expects a different client ID:
+
+```bash
+# Set the client ID in your .env file
+OPENCLAW_CLIENT_ID=openclaw-control-ui
+```
+
+Known valid client IDs:
+- `openclaw-control-ui` — Standard control-plane UI (default)
+- Check your OpenClaw Gateway documentation or logs for other accepted values
+
+If you see `must match a schema in anyOf`, this means the `client.id` is not in the gateway's accepted list. Inspect the OpenClaw Gateway configuration or admin panel to find the expected client identifiers.
+
 #### "OpenClaw connection timeout"
 
 - Verify `OPENCLAW_GATEWAY_HOST` is reachable from the Mission Control server
