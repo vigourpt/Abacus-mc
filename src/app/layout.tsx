@@ -1,6 +1,7 @@
 import './globals.css';
 import { ThemeProvider } from './providers';
 import Sidebar from './sidebar';
+import HeaderBar from '@/components/HeaderBar';
 
 export const metadata = {
   title: 'Mission Control',
@@ -30,9 +31,12 @@ export default function RootLayout({
         <ThemeProvider>
           <div className="layout">
             <Sidebar />
-            <main className="main-content">
-              {children}
-            </main>
+            <div className="main-wrapper">
+              <HeaderBar />
+              <main className="main-content">
+                {children}
+              </main>
+            </div>
           </div>
         </ThemeProvider>
       </body>
