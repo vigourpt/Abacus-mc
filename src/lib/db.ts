@@ -1,0 +1,154 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+
+const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'mission-control.db');
+
+let db: Database.Database | null = null;
+
+export function getDb(): Database.Database {
+  if (!db) {
+    // Ensure data directory exists
+    const fs = require('fs');
+    const dataDir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    db = new Database(DB_PATH);
+    db.pragma('journal_mode = WAL');
+    initializeSchema(db);
+  }
+  return db;
+}
+
+function initializeSchema(database: Database.Database): void {
+  // Create agent_definitions table if it doesn't exist
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS agent_definitions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  // Create tasks table
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      agent_slug TEXT NOT NULL,
+      task TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      result TEXT,
+      error TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY (agent_slug) REFERENCES agent_definitions(slug)
+    )
+  `);
+
+  // Create index on tasks status
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)
+  `);
+
+  // Create index on tasks agent_slug
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_agent_slug ON tasks(agent_slug)
+  `);
+}
+
+// Agent definitions
+export interface AgentDefinition {
+  id: number;
+  slug: string;
+  name: string;
+  description: string | null;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getAgentBySlug(slug: string): AgentDefinition | undefined {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM agent_definitions WHERE slug = ?');
+  return stmt.get(slug) as AgentDefinition | undefined;
+}
+
+export function getAllAgents(): AgentDefinition[] {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM agent_definitions ORDER BY name');
+  return stmt.all() as AgentDefinition[];
+}
+
+export function upsertAgent(slug: string, name: string, description: string | null, content: string): void {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO agent_definitions (slug, name, description, content, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(slug) DO UPDATE SET
+      name = excluded.name,
+      description = excluded.description,
+      content = excluded.content,
+      updated_at = datetime('now')
+  `);
+  stmt.run(slug, name, description, content);
+}
+
+// Tasks
+export interface Task {
+  id: string;
+  agent_slug: string;
+  task: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export function createTask(id: string, agentSlug: string, task: string): Task {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO tasks (id, agent_slug, task, status)
+    VALUES (?, ?, ?, 'pending')
+  `);
+  stmt.run(id, agentSlug, task);
+  return getTaskById(id)!;
+}
+
+export function getTaskById(id: string): Task | undefined {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM tasks WHERE id = ?');
+  return stmt.get(id) as Task | undefined;
+}
+
+export function getAllTasks(): Task[] {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM tasks ORDER BY created_at DESC');
+  return stmt.all() as Task[];
+}
+
+export function updateTaskStatus(id: string, status: Task['status'], result?: string, error?: string): void {
+  const db = getDb();
+  if (status === 'completed' || status === 'failed') {
+    const stmt = db.prepare(`
+      UPDATE tasks 
+      SET status = ?, result = ?, error = ?, updated_at = datetime('now'), completed_at = datetime('now')
+      WHERE id = ?
+    `);
+    stmt.run(status, result ?? null, error ?? null, id);
+  } else {
+    const stmt = db.prepare(`
+      UPDATE tasks 
+      SET status = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `);
+    stmt.run(status, id);
+  }
+}
