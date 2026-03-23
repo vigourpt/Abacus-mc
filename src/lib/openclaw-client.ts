@@ -272,6 +272,7 @@ export class OpenClawClient extends EventEmitter {
 
         const device = signChallenge(this.identity, nonce, {
           clientId: CLIENT_ID,
+          clientMode: CLIENT_MODE,
           role: CLIENT_ROLE,
           scopes: CLIENT_SCOPES,
           token,

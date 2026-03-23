@@ -7,6 +7,7 @@
 
 import nacl from 'tweetnacl';
 import naclUtil from 'tweetnacl-util';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { generateId } from './utils';
@@ -278,6 +279,21 @@ export function loadKeyFromEnvironment(): { publicKey: string; privateKey: strin
 }
 
 // =====================================================
+// Device ID Derivation
+// =====================================================
+
+/**
+ * Derive the device ID from the raw public key using SHA-256.
+ * OpenClaw requires: deviceId = SHA-256(rawPublicKey).hex
+ * This must match the `deriveDeviceIdFromPublicKey()` function in OpenClaw.
+ */
+export function deriveDeviceIdFromPublicKey(publicKeyBase64: string): string {
+  const publicKeyBytes = naclUtil.decodeBase64(publicKeyBase64);
+  const hash = crypto.createHash('sha256').update(Buffer.from(publicKeyBytes)).digest('hex');
+  return hash;
+}
+
+// =====================================================
 // Core Identity Functions
 // =====================================================
 
@@ -286,11 +302,14 @@ export function loadKeyFromEnvironment(): { publicKey: string; privateKey: strin
  */
 export function generateDeviceIdentity(): DeviceIdentity {
   const keyPair = nacl.sign.keyPair();
+  const publicKeyBase64 = naclUtil.encodeBase64(keyPair.publicKey);
+  // OpenClaw requires deviceId = SHA-256(rawPublicKey).hex
+  const deviceId = deriveDeviceIdFromPublicKey(publicKeyBase64);
   
   const identity: DeviceIdentity = {
-    publicKey: naclUtil.encodeBase64(keyPair.publicKey),
+    publicKey: publicKeyBase64,
     privateKey: naclUtil.encodeBase64(keyPair.secretKey),
-    deviceId: generateId(),
+    deviceId,
     createdAt: new Date(),
   };
 
@@ -346,17 +365,29 @@ export function getOrCreateDeviceIdentity(): DeviceIdentity {
     // Check if we have a saved identity with a matching public key
     const saved = loadDeviceIdentity();
     if (saved && saved.publicKey === envKeys.publicKey) {
-      // Update the private key in case the format changed but keep deviceId
+      // Update the private key in case the format changed
       saved.privateKey = envKeys.privateKey;
       saved.publicKey = envKeys.publicKey;
+      // Ensure deviceId is derived correctly (SHA-256 of public key)
+      const correctDeviceId = deriveDeviceIdFromPublicKey(envKeys.publicKey);
+      if (saved.deviceId !== correctDeviceId) {
+        logger.info(
+          { oldDeviceId: saved.deviceId, newDeviceId: correctDeviceId },
+          'Migrating deviceId from UUID to SHA-256(publicKey).hex format'
+        );
+        saved.deviceId = correctDeviceId;
+        saveDeviceIdentity(saved);
+      }
       return saved;
     }
 
     // Create a new identity from the environment key
+    // OpenClaw requires deviceId = SHA-256(rawPublicKey).hex
+    const derivedDeviceId = deriveDeviceIdFromPublicKey(envKeys.publicKey);
     const identity: DeviceIdentity = {
       publicKey: envKeys.publicKey,
       privateKey: envKeys.privateKey,
-      deviceId: generateId(),
+      deviceId: derivedDeviceId,
       createdAt: new Date(),
     };
     saveDeviceIdentity(identity);
@@ -367,6 +398,16 @@ export function getOrCreateDeviceIdentity(): DeviceIdentity {
   // Priority 2: Load from disk
   let identity = loadDeviceIdentity();
   if (identity) {
+    // Ensure deviceId is derived correctly (migrate old UUID-based IDs)
+    const correctDeviceId = deriveDeviceIdFromPublicKey(identity.publicKey);
+    if (identity.deviceId !== correctDeviceId) {
+      logger.info(
+        { oldDeviceId: identity.deviceId, newDeviceId: correctDeviceId },
+        'Migrating deviceId from UUID to SHA-256(publicKey).hex format'
+      );
+      identity.deviceId = correctDeviceId;
+      saveDeviceIdentity(identity);
+    }
     return identity;
   }
 
@@ -432,48 +473,74 @@ export function createAuthPayload(identity: DeviceIdentity): {
 // =====================================================
 
 /**
- * Build the v3 signature payload from the challenge nonce and connection params.
+ * Build the v2 signature payload from the challenge nonce and connection params.
  *
- * OpenClaw v3 "preferred signature payload" binds:
- *   deviceId + clientId + role + scopes (sorted, joined) + nonce + token (if any)
- * This mirrors what the official CLI / web UI sends.
+ * OpenClaw v2 signature payload format (pipe-delimited):
+ *   v2|{deviceId}|{clientId}|{clientMode}|{role}|{scopes}|{signedAtMs}|{token}|{nonce}
+ *
+ * Where:
+ *   - deviceId = SHA-256(rawPublicKey).hex
+ *   - clientId = registered client identifier (e.g. "openclaw-control-ui", "cli", "webchat")
+ *   - clientMode = "webchat" or "cli" (NOT the role)
+ *   - role = "operator" or "node"
+ *   - scopes = comma-separated scope list (e.g. "operator.read,operator.write")
+ *   - signedAtMs = Date.now() timestamp in milliseconds
+ *   - token = auth token if any, or empty string
+ *   - nonce = server-provided nonce from connect.challenge
+ *
+ * The entire UTF-8 string is signed with Ed25519.
  */
-function buildV3SignaturePayload(params: {
+function buildV2SignaturePayload(params: {
   deviceId: string;
   clientId: string;
+  clientMode: string;
   role: string;
   scopes: string[];
+  signedAtMs: number;
   nonce: string;
   token?: string;
 }): string {
   const scopeStr = [...params.scopes].sort().join(',');
-  const parts = [
+  const tokenStr = params.token || '';
+  const payload = [
+    'v2',
     params.deviceId,
     params.clientId,
+    params.clientMode,
     params.role,
     scopeStr,
+    params.signedAtMs.toString(),
+    tokenStr,
     params.nonce,
-  ];
-  if (params.token) {
-    parts.push(params.token);
-  }
-  return parts.join(':');
+  ].join('|');
+
+  logger.info(
+    { payload, deviceId: params.deviceId, clientId: params.clientId, mode: params.clientMode },
+    'Built v2 signature payload'
+  );
+
+  return payload;
 }
 
 /**
  * Sign an OpenClaw v3 `connect.challenge` nonce and produce the `device` block
  * required by the `connect` request.
  *
- * @param identity  Current device identity (keys + deviceId)
- * @param nonce     The nonce string received in the `connect.challenge` event
- * @param options   Connection parameters (clientId, role, scopes, token)
- * @returns         The `device` object to embed in `connect` params
+ * Uses the v2 signature payload format (pipe-delimited), which is the standard
+ * format accepted by OpenClaw gateways. The v3 format adds platform/deviceFamily
+ * but v2 is universally accepted.
+ *
+ * @param identity    Current device identity (keys + deviceId)
+ * @param nonce       The nonce string received in the `connect.challenge` event
+ * @param options     Connection parameters (clientId, clientMode, role, scopes, token)
+ * @returns           The `device` object to embed in `connect` params
  */
 export function signChallenge(
   identity: DeviceIdentity,
   nonce: string,
   options: {
     clientId: string;
+    clientMode: string;
     role: string;
     scopes: string[];
     token?: string;
@@ -486,18 +553,35 @@ export function signChallenge(
   nonce: string;
 } {
   const signedAt = Date.now();
-  const payload = buildV3SignaturePayload({
-    deviceId: identity.deviceId,
+
+  // Ensure deviceId is derived correctly from public key
+  const deviceId = deriveDeviceIdFromPublicKey(identity.publicKey);
+  if (deviceId !== identity.deviceId) {
+    logger.warn(
+      { storedDeviceId: identity.deviceId, derivedDeviceId: deviceId },
+      'DeviceId mismatch: using derived SHA-256(publicKey).hex for signature'
+    );
+  }
+
+  const payload = buildV2SignaturePayload({
+    deviceId,
     clientId: options.clientId,
+    clientMode: options.clientMode,
     role: options.role,
     scopes: options.scopes,
+    signedAtMs: signedAt,
     nonce,
     token: options.token,
   });
   const signature = signMessage(payload, identity);
 
+  logger.info(
+    { deviceId, signedAt, noncePrefix: nonce.substring(0, 8) },
+    'Signed connect.challenge with v2 payload'
+  );
+
   return {
-    id: identity.deviceId,
+    id: deviceId,
     publicKey: identity.publicKey,
     signature,
     signedAt,

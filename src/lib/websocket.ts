@@ -132,6 +132,7 @@ export class OpenClawWebSocket {
 
                 const device = signChallenge(identity, nonce, {
                   clientId: CLIENT_ID,
+                  clientMode: CLIENT_MODE,
                   role: CLIENT_ROLE,
                   scopes: CLIENT_SCOPES,
                   token,

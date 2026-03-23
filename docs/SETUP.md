@@ -490,6 +490,36 @@ Valid modes:
 
 > **Note:** The `role` field (`operator`) and the `mode` field (`webchat`) serve different purposes. `role` controls permissions/scopes; `mode` tells the gateway what kind of client session to create.
 
+#### "device signature invalid" / Signature verification failure
+
+OpenClaw uses a v2 pipe-delimited signature payload format. The payload must be constructed as:
+
+```
+v2|{deviceId}|{clientId}|{clientMode}|{role}|{scopes}|{signedAtMs}|{token}|{nonce}
+```
+
+Where:
+- `deviceId` = `SHA-256(rawPublicKey).hex` — **NOT** a random UUID
+- `clientId` = registered client identifier (e.g. `openclaw-control-ui`)
+- `clientMode` = `webchat` or `cli`
+- `role` = `operator` or `node`
+- `scopes` = comma-separated, sorted (e.g. `operator.read,operator.write`)
+- `signedAtMs` = `Date.now()` in milliseconds
+- `token` = auth token if any, or empty string
+- `nonce` = server-provided nonce from `connect.challenge`
+
+Common causes of signature failure:
+1. **Wrong deviceId format** — must be `SHA-256(publicKey).hex`, not a random UUID
+2. **Wrong payload delimiter** — must use `|` (pipe), not `:` (colon)
+3. **Missing `v2` prefix** — the payload must start with `v2|`
+4. **Missing `clientMode`** — the mode field must be included in the signature
+5. **Missing `signedAtMs`** — the timestamp must be included and within 10 minutes of server time
+6. **Token mismatch** — the token in the signature must match `auth.token` in the connect request
+7. **Clock skew** — `signedAtMs` must be within `DEVICE_SIGNATURE_SKEW_MS` (600,000ms / 10 minutes)
+
+If the device identity was created with an older version that used random UUIDs for deviceId, delete `.data/device-identity.json` and restart Mission Control to regenerate it with the correct SHA-256 derived ID.
+
+
 #### "OpenClaw connection timeout"
 
 - Verify `OPENCLAW_GATEWAY_HOST` is reachable from the Mission Control server
