@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 interface Agent {
   id: number;
@@ -29,7 +30,6 @@ export default function Home() {
   useEffect(() => {
     fetchAgents();
     fetchTasks();
-    // Poll for task updates
     const interval = setInterval(fetchTasks, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -77,8 +77,6 @@ export default function Home() {
         console.log('Task created:', data);
         setTaskInput('');
         fetchTasks();
-
-        // Poll for completion
         pollForResult(data.taskId);
       } else {
         const error = await res.text();
@@ -125,59 +123,94 @@ export default function Home() {
     setLastResult('Task timed out');
   }
 
+  const recentTasks = tasks.slice(0, 10);
+  const runningTasks = tasks.filter(t => t.status === 'running').length;
+  const pendingTasks = tasks.filter(t => t.status === 'pending').length;
+
   return (
     <div className="container">
-      <h1>Mission Control</h1>
-      
-      <div className="card">
-        <h2>Execute Agent Task</h2>
-        <form onSubmit={handleSubmitTask}>
-          <div>
-            <label>Select Agent</label>
-            <select 
-              value={selectedAgent} 
-              onChange={e => setSelectedAgent(e.target.value)}
-              required
-            >
-              <option value="">Choose an agent...</option>
-              {agents.map(agent => (
-                <option key={agent.slug} value={agent.slug}>
-                  {agent.name} ({agent.slug})
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label>Task Description</label>
-            <textarea 
-              value={taskInput}
-              onChange={e => setTaskInput(e.target.value)}
-              placeholder="Describe what you want the agent to do..."
-              rows={4}
-              required
-            />
-          </div>
-          
-          <button type="submit" disabled={isLoading}>
-            {isLoading ? 'Executing...' : 'Execute Task'}
-          </button>
-        </form>
+      <div className="card-header">
+        <h1>Dashboard</h1>
+        <Link href="/tasks" className="btn btn-secondary">View All Tasks</Link>
       </div>
 
-      {lastResult && (
-        <div className="card">
-          <h3>Last Result</h3>
-          <pre>{lastResult}</pre>
+      {/* Quick Stats */}
+      <div className="grid grid-3" style={{ marginBottom: '1.5rem' }}>
+        <div className="stat-card">
+          <div className="stat-value">{agents.length}</div>
+          <div className="stat-label">Available Agents</div>
         </div>
-      )}
+        <div className="stat-card">
+          <div className="stat-value" style={{ color: 'var(--accent)' }}>{runningTasks}</div>
+          <div className="stat-label">Running Tasks</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value" style={{ color: 'var(--warning)' }}>{pendingTasks}</div>
+          <div className="stat-label">Pending Tasks</div>
+        </div>
+      </div>
 
+      <div className="grid grid-2">
+        {/* Execute Task Form */}
+        <div className="card">
+          <h2>Execute Agent Task</h2>
+          <form onSubmit={handleSubmitTask}>
+            <div className="form-group">
+              <label>Select Agent</label>
+              <select 
+                value={selectedAgent} 
+                onChange={e => setSelectedAgent(e.target.value)}
+                required
+              >
+                <option value="">Choose an agent...</option>
+                {agents.map(agent => (
+                  <option key={agent.slug} value={agent.slug}>
+                    {agent.name} ({agent.slug})
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="form-group">
+              <label>Task Description</label>
+              <textarea 
+                value={taskInput}
+                onChange={e => setTaskInput(e.target.value)}
+                placeholder="Describe what you want the agent to do..."
+                rows={4}
+                required
+              />
+            </div>
+            
+            <button type="submit" disabled={isLoading} className="btn">
+              {isLoading ? 'Executing...' : 'Execute Task'}
+            </button>
+          </form>
+        </div>
+
+        {/* Last Result */}
+        <div className="card">
+          <h2>Last Result</h2>
+          {lastResult ? (
+            <pre style={{ maxHeight: '300px', overflow: 'auto' }}>{lastResult}</pre>
+          ) : (
+            <div className="empty-state">
+              <p>No result yet. Execute a task to see results here.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recent Tasks */}
       <div className="card">
         <h2>Recent Tasks</h2>
-        {tasks.length === 0 ? (
-          <p>No tasks yet</p>
+        {recentTasks.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📋</div>
+            <p>No tasks yet</p>
+          </div>
         ) : (
-          <table style={{ width: '100%', textAlign: 'left' }}>
+          <table>
             <thead>
               <tr>
                 <th>ID</th>
@@ -188,17 +221,21 @@ export default function Home() {
               </tr>
             </thead>
             <tbody>
-              {tasks.slice(0, 10).map(task => (
+              {recentTasks.map(task => (
                 <tr key={task.id}>
-                  <td style={{ fontSize: '0.75rem' }}>{task.id.slice(0, 8)}...</td>
-                  <td>{task.agent_slug}</td>
-                  <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {task.task.slice(0, 50)}...
+                  <td style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                    {task.id.slice(0, 8)}...
+                  </td>
+                  <td>
+                    <span className="badge badge-blue">{task.agent_slug}</span>
+                  </td>
+                  <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {task.task}
                   </td>
                   <td>
                     <span className={`status ${task.status}`}>{task.status}</span>
                   </td>
-                  <td style={{ fontSize: '0.875rem' }}>
+                  <td style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                     {new Date(task.created_at).toLocaleString()}
                   </td>
                 </tr>

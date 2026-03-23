@@ -60,6 +60,24 @@ function initializeSchema(database: Database.Database): void {
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_tasks_agent_slug ON tasks(agent_slug)
   `);
+
+  // Create activity_log table
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL,
+      agent_slug TEXT,
+      task_id TEXT,
+      message TEXT NOT NULL,
+      metadata TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  // Create index on activity_log
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at DESC)
+  `);
 }
 
 // Agent definitions
@@ -151,4 +169,36 @@ export function updateTaskStatus(id: string, status: Task['status'], result?: st
     `);
     stmt.run(status, id);
   }
+}
+
+// Activity Log
+export interface ActivityLogEntry {
+  id: number;
+  event_type: string;
+  agent_slug: string | null;
+  task_id: string | null;
+  message: string;
+  metadata: string | null;
+  created_at: string;
+}
+
+export function logActivity(eventType: string, message: string, agentSlug?: string, taskId?: string, metadata?: Record<string, unknown>): void {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO activity_log (event_type, agent_slug, task_id, message, metadata)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  stmt.run(eventType, agentSlug ?? null, taskId ?? null, message, metadata ? JSON.stringify(metadata) : null);
+}
+
+export function getRecentActivity(limit: number = 50): ActivityLogEntry[] {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?');
+  return stmt.all(limit) as ActivityLogEntry[];
+}
+
+export function getActivityByType(eventType: string, limit: number = 50): ActivityLogEntry[] {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM activity_log WHERE event_type = ? ORDER BY created_at DESC LIMIT ?');
+  return stmt.all(eventType, limit) as ActivityLogEntry[];
 }
