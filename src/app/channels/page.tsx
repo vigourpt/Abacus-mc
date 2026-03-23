@@ -65,6 +65,7 @@ export default function ChannelsPage() {
   }
 
   function getChannelIcon(type: string) {
+    if (!type) return '📱';
     switch (type.toLowerCase()) {
       case 'telegram': return '✈️';
       case 'whatsapp': return '💬';
