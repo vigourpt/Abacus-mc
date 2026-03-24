@@ -16,12 +16,20 @@ export default function Sidebar() {
           <span className="nav-icon">📊</span>
           Dashboard
         </Link>
+        <Link href="/agents" className="nav-link">
+          <span className="nav-icon">🤖</span>
+          Agents
+        </Link>
         <Link href="/tasks" className="nav-link">
           <span className="nav-icon">✓</span>
           Tasks
         </Link>
-        <Link href="/channels" className="nav-link">
+        <Link href="/chat" className="nav-link">
           <span className="nav-icon">💬</span>
+          Chat
+        </Link>
+        <Link href="/channels" className="nav-link">
+          <span className="nav-icon">📡</span>
           Channels
         </Link>
         <Link href="/analytics" className="nav-link">

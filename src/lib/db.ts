@@ -78,6 +78,35 @@ function initializeSchema(database: Database.Database): void {
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at DESC)
   `);
+
+  // Create conversations table for chat interface
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id TEXT PRIMARY KEY,
+      agent_slug TEXT NOT NULL,
+      title TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (agent_slug) REFERENCES agent_definitions(slug)
+    )
+  `);
+
+  // Create messages table for chat
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    )
+  `);
+
+  // Create index on messages
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)
+  `);
 }
 
 // Agent definitions
@@ -201,4 +230,89 @@ export function getActivityByType(eventType: string, limit: number = 50): Activi
   const db = getDb();
   const stmt = db.prepare('SELECT * FROM activity_log WHERE event_type = ? ORDER BY created_at DESC LIMIT ?');
   return stmt.all(eventType, limit) as ActivityLogEntry[];
+}
+
+// Conversations for chat
+export interface Conversation {
+  id: string;
+  agent_slug: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  created_at: string;
+}
+
+export function createConversation(id: string, agentSlug: string, title?: string): Conversation {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO conversations (id, agent_slug, title)
+    VALUES (?, ?, ?)
+  `);
+  stmt.run(id, agentSlug, title ?? null);
+  return getConversationById(id)!;
+}
+
+export function getConversationById(id: string): Conversation | undefined {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM conversations WHERE id = ?');
+  return stmt.get(id) as Conversation | undefined;
+}
+
+export function getAllConversations(): Conversation[] {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM conversations ORDER BY updated_at DESC');
+  return stmt.all() as Conversation[];
+}
+
+export function getConversationsByAgent(agentSlug: string): Conversation[] {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM conversations WHERE agent_slug = ? ORDER BY updated_at DESC');
+  return stmt.all(agentSlug) as Conversation[];
+}
+
+export function updateConversationTimestamp(id: string): void {
+  const db = getDb();
+  const stmt = db.prepare('UPDATE conversations SET updated_at = datetime("now") WHERE id = ?');
+  stmt.run(id);
+}
+
+export function deleteConversation(id: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM messages WHERE conversation_id = ?').run(id);
+  db.prepare('DELETE FROM conversations WHERE id = ?').run(id);
+}
+
+export function createMessage(id: string, conversationId: string, role: Message['role'], content: string): Message {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO messages (id, conversation_id, role, content)
+    VALUES (?, ?, ?, ?)
+  `);
+  stmt.run(id, conversationId, role, content);
+  updateConversationTimestamp(conversationId);
+  return getMessageById(id)!;
+}
+
+export function getMessageById(id: string): Message | undefined {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM messages WHERE id = ?');
+  return stmt.get(id) as Message | undefined;
+}
+
+export function getMessagesByConversation(conversationId: string): Message[] {
+  const db = getDb();
+  const stmt = db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC');
+  return stmt.all(conversationId) as Message[];
+}
+
+export function deleteMessage(id: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM messages WHERE id = ?').run(id);
 }
