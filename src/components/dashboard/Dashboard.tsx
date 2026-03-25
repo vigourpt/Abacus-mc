@@ -229,6 +229,8 @@ function PanelContent({ panel }: { panel: string }) {
 }
 
 function AgentsPanel({ agents }: { agents: any[] }) {
+  const { setActivePanel } = useAppStore();
+  
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -239,7 +241,10 @@ function AgentsPanel({ agents }: { agents: any[] }) {
             placeholder="Search agents..."
             className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-500 w-full sm:w-auto"
           />
-          <button className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded text-sm transition-colors whitespace-nowrap">
+          <button 
+            onClick={() => setActivePanel('hiring')}
+            className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded text-sm transition-colors whitespace-nowrap"
+          >
             + New Agent
           </button>
         </div>

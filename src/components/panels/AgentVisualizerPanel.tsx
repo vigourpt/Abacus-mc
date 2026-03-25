@@ -700,7 +700,10 @@ export function AgentVisualizerPanel() {
       ctx.translate(pan.x, pan.y);
       ctx.scale(zoom, zoom);
       
-      // Draw floors with better styling
+      // Draw floors with better styling - scale based on canvas size
+      const canvas = canvasRef.current;
+      const floorWidth = canvas ? canvas.width / (window.devicePixelRatio || 1) - 100 : 800;
+      
       FLOORS.forEach((floor, floorIndex) => {
         const floorY = 80 + floorIndex * 180;
         const floorHeight = 160;
@@ -711,7 +714,7 @@ export function AgentVisualizerPanel() {
         gradient.addColorStop(1, adjustColor(floor.color, -20));
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.roundRect(50, floorY, 800, floorHeight, 8);
+        ctx.roundRect(50, floorY, Math.max(800, floorWidth), floorHeight, 8);
         ctx.fill();
         
         // Floor border
@@ -873,15 +876,24 @@ export function AgentVisualizerPanel() {
     return `rgb(${r}, ${g}, ${b})`;
   }
 
-  // Handle canvas resize
+  // Handle canvas resize - use device pixel ratio for sharp rendering on high-DPI displays
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
     
     const resizeCanvas = () => {
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
+      const dpr = window.devicePixelRatio || 1;
+      const rect = container.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.scale(dpr, dpr);
+      }
     };
     
     resizeCanvas();
