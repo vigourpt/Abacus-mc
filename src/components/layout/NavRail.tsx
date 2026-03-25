@@ -52,6 +52,7 @@ const navSections: NavSection[] = [
   {
     title: 'ADMIN',
     items: [
+      { id: 'hiring', icon: '💼', label: 'Hiring' },
       { id: 'security', icon: '🔒', label: 'Security' },
       { id: 'analytics', icon: '📈', label: 'Analytics' },
       { id: 'gateways', icon: '🔌', label: 'Gateways' },

@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useAppStore } from '@/store';
 
 export function HeaderBar() {
-  const { agents, tasks, activePanel, gatewayConnection } = useAppStore();
+  const { agents, tasks, activePanel, gatewayConnection, setActivePanel } = useAppStore();
   const [showHelp, setShowHelp] = useState(false);
 
   const activeAgents = agents.filter((a) => a.status === 'active' || a.status === 'busy').length;
   const pendingTasks = tasks.filter((t) => t.status === 'inbox' || t.status === 'backlog').length;
   const inProgressTasks = tasks.filter((t) => t.status === 'in_progress').length;
+
+  const isPanelActive = activePanel !== 'dashboard';
 
   const panelTitles: Record<string, string> = {
     dashboard: 'Dashboard',
@@ -19,12 +21,43 @@ export function HeaderBar() {
     hiring: 'Agent Hiring',
     gateways: 'Gateway Connections',
     settings: 'Settings',
+    chat: 'Chat',
+    'agent-world': 'Agent World',
+    visualizer: 'Agent World',
+    pipeline: 'Pipeline',
+    channels: 'Channels',
+    skills: 'Skills',
+    memory: 'Memory',
+    activity: 'Activity',
+    logs: 'Logs',
+    'cost-tracker': 'Cost Tracker',
+    nodes: 'Nodes',
+    approvals: 'Approvals',
+    office: 'Office',
+    cron: 'Cron',
+    webhooks: 'Webhooks',
+    alerts: 'Alerts',
+    github: 'GitHub',
+    security: 'Security',
+    analytics: 'Analytics',
   };
 
   return (
     <header className="bg-gray-800 border-b border-gray-700 px-3 md:px-6 py-3 md:py-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 flex items-center gap-2">
+          {/* Back button for mobile when panel is active */}
+          {isPanelActive && (
+            <button
+              onClick={() => setActivePanel('dashboard')}
+              className="lg:hidden p-1.5 -ml-1 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors"
+              title="Back to Dashboard"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
           <h1 className="text-lg md:text-xl font-semibold text-white truncate">
             {panelTitles[activePanel] || 'Dashboard'}
           </h1>

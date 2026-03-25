@@ -28,12 +28,31 @@ export default function Home() {
           setTasks(tasks);
         }
 
-        // Check gateway connection status
+        // Check gateway connection status and auto-connect if needed
         const statusRes = await fetch('/api/openclaw/status');
         if (statusRes.ok) {
           const status = await statusRes.json();
           if (status.success && status.connection) {
             setGatewayConnection(status.connection);
+          }
+        }
+
+        // Auto-connect to gateways if not connected
+        const gatewaysRes = await fetch('/api/gateways');
+        if (gatewaysRes.ok) {
+          const gateways = await gatewaysRes.json();
+          if (gateways.length > 0) {
+            try {
+              const connectRes = await fetch('/api/gateways/auto-connect', { method: 'POST' });
+              if (connectRes.ok) {
+                const connectResult = await connectRes.json();
+                if (connectResult.success && connectResult.connection) {
+                  setGatewayConnection(connectResult.connection);
+                }
+              }
+            } catch (e) {
+              console.log('Auto-connect skipped - will try on gateway panel visit');
+            }
           }
         }
 
@@ -64,7 +83,7 @@ export default function Home() {
       <NavRail />
       <div className="flex-1 flex flex-col overflow-hidden w-full min-w-0">
         <HeaderBar />
-        <main className="flex-1 overflow-hidden md:overflow-auto">
+        <main className="flex-1 overflow-auto md:overflow-auto">
           <Dashboard />
         </main>
       </div>

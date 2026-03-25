@@ -96,6 +96,11 @@ body {
   .fixed, .sticky {
     padding-top: max(0px, env(safe-area-inset-top));
   }
+  
+  /* Safe area for bottom content */
+  .safe-area-bottom {
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
 }
 
 /* Prevent iOS Safari address bar from causing layout issues */

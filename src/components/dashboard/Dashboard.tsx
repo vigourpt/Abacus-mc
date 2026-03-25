@@ -48,12 +48,12 @@ export function Dashboard() {
   };
 
   return (
-    <div className="h-full overflow-auto p-6 space-y-6">
+    <div className="h-full overflow-auto p-3 md:p-6 space-y-4 md:space-y-6 safe-area-bottom">
       {/* Quick Actions */}
       <QuickActions />
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
         <StatCard
           title="Total Agents"
           value={agents.length}
@@ -81,13 +81,13 @@ export function Dashboard() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Agents Column */}
-        <div className="col-span-2 space-y-6">
+        <div className="md:col-span-2 space-y-4 md:space-y-6">
           {/* Core Agents */}
           <section>
-            <h2 className="text-lg font-semibold text-white mb-4">Core Agents</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <h2 className="text-lg font-semibold text-white mb-3 md:mb-4">Core Agents</h2>
+            <div className="grid grid-cols-2 gap-2 md:gap-4">
               {[...agentsByDivision.executive, ...agentsByDivision.engineering]
                 .slice(0, 4)
                 .map((agent) => (
@@ -98,10 +98,10 @@ export function Dashboard() {
 
           {/* Business Agents */}
           <section>
-            <h2 className="text-lg font-semibold text-white mb-4">
+            <h2 className="text-lg font-semibold text-white mb-3 md:mb-4">
               Business Operations
             </h2>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
               {[
                 ...agentsByDivision.marketing,
                 ...agentsByDivision.sales,
@@ -207,34 +207,44 @@ function PanelContent({ panel }: { panel: string }) {
 
   // Check if it's a full-height panel
   if (fullHeightPanels[panel]) {
-    return <div className="h-full">{fullHeightPanels[panel]}</div>;
+    return <div className="h-full overflow-hidden">{fullHeightPanels[panel]}</div>;
   }
 
   // Standard panel with padding and scroll
   if (standardPanels[panel]) {
-    return <div className="h-full overflow-auto p-6">{standardPanels[panel]}</div>;
+    return (
+      <div className="h-full overflow-auto p-3 md:p-6 safe-area-bottom">
+        <div className="min-w-0">
+          {standardPanels[panel]}
+        </div>
+      </div>
+    );
   }
 
-  return <div className="h-full overflow-auto p-6"><NotFoundPanel panel={panel} /></div>;
+  return (
+    <div className="h-full overflow-auto p-3 md:p-6 safe-area-bottom">
+      <NotFoundPanel panel={panel} />
+    </div>
+  );
 }
 
 function AgentsPanel({ agents }: { agents: any[] }) {
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-white">All Agents ({agents.length})</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input
             type="text"
             placeholder="Search agents..."
-            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-500"
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-500 w-full sm:w-auto"
           />
-          <button className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded text-sm transition-colors">
+          <button className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded text-sm transition-colors whitespace-nowrap">
             + New Agent
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {agents.map((agent) => (
           <AgentCard key={agent.id} agent={agent} />
         ))}
@@ -245,7 +255,7 @@ function AgentsPanel({ agents }: { agents: any[] }) {
 
 function TasksPanel({ tasks }: { tasks: any[] }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <h2 className="text-xl font-semibold text-white">Task Board</h2>
       <TaskSummary tasks={tasks} expanded />
     </div>
