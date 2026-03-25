@@ -64,12 +64,34 @@ export function NavRail() {
   const { activePanel, setActivePanel, sidebarOpen, toggleSidebar } = useAppStore();
 
   return (
-    <nav
-      className={cn(
-        'bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-200 h-screen overflow-y-auto',
-        sidebarOpen ? 'w-52' : 'w-16'
+    <>
+      {/* Mobile hamburger menu */}
+      <button
+        onClick={toggleSidebar}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded-lg text-white"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/50 z-30"
+          onClick={toggleSidebar}
+        />
       )}
-    >
+
+      <nav
+        className={cn(
+          'bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-200 h-screen overflow-y-auto fixed lg:relative z-40',
+          sidebarOpen ? 'w-52' : 'w-16',
+          // Hide on mobile when collapsed
+          !sidebarOpen && 'lg:w-16 w-0 lg:relative',
+          sidebarOpen && 'w-52'
+        )}
+      >
       {/* Logo/Toggle */}
       <div className="p-4 border-b border-gray-800 sticky top-0 bg-gray-900 z-10">
         <button
@@ -155,5 +177,6 @@ export function NavRail() {
         </div>
       </div>
     </nav>
+    </>
   );
 }

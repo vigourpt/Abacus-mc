@@ -52,20 +52,20 @@ export function HeaderBar() {
           </div>
         )}
 
-        <div className="flex items-center gap-6">
-          {/* Stats */}
-          <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-4 md:gap-6">
+          {/* Stats - hide some on mobile */}
+          <div className="hidden sm:flex items-center gap-3 md:gap-4 text-sm">
             <div className="flex items-center gap-2">
               <span className="text-green-400">🤖</span>
-              <span className="text-gray-300">{activeAgents} active</span>
+              <span className="text-gray-300">{activeAgents}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <span className="text-yellow-400">📋</span>
-              <span className="text-gray-300">{pendingTasks} pending</span>
+              <span className="text-gray-300">{pendingTasks}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-blue-400">⚡</span>
-              <span className="text-gray-300">{inProgressTasks} in progress</span>
+              <span className="text-gray-300">{inProgressTasks}</span>
             </div>
           </div>
 

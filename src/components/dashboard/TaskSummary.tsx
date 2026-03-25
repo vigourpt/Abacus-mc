@@ -23,12 +23,12 @@ export function TaskSummary({ tasks, expanded = false }: TaskSummaryProps) {
       <h2 className="text-lg font-semibold text-white mb-4">Task Overview</h2>
 
       {expanded ? (
-        // Full Kanban Board
-        <div className="grid grid-cols-6 gap-4">
+        // Full Kanban Board - horizontal scroll on mobile
+        <div className="flex md:grid md:grid-cols-6 gap-4 overflow-x-auto pb-4">
           {columns.map((column) => {
             const columnTasks = tasks.filter((t) => t.status === column.id);
             return (
-              <div key={column.id} className="bg-gray-800 rounded-lg p-3">
+              <div key={column.id} className="bg-gray-800 rounded-lg p-3 min-w-[160px] flex-shrink-0">
                 <div className="flex items-center gap-2 mb-3">
                   <span className={cn('w-3 h-3 rounded', column.color)}></span>
                   <span className="text-sm font-medium text-white">
@@ -54,7 +54,7 @@ export function TaskSummary({ tasks, expanded = false }: TaskSummaryProps) {
         </div>
       ) : (
         // Summary View
-        <div className="grid grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           {columns.map((column) => {
             const count = tasks.filter((t) => t.status === column.id).length;
             return (

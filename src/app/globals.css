@@ -28,6 +28,40 @@ body {
   border-radius: 4px;
 }
 
+/* Mobile responsive */
+@media (max-width: 1024px) {
+  /* Larger touch targets */
+  button, 
+  a,
+  .cursor-pointer {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent horizontal overflow */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* Touch-friendly inputs */
+  input, select, textarea {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+  
+  /* Hide horizontal scroll on containers */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Safe area for notched phones */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #4b4b4b;
 }
