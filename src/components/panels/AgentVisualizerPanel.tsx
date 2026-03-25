@@ -875,18 +875,26 @@ export function AgentVisualizerPanel() {
 
   // Handle canvas resize
   useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    
     const resizeCanvas = () => {
-      const canvas = canvasRef.current;
-      const container = containerRef.current;
-      if (!canvas || !container) return;
-      
       canvas.width = container.clientWidth;
       canvas.height = container.clientHeight;
     };
     
     resizeCanvas();
+    
+    // Use ResizeObserver for more reliable size tracking
+    const resizeObserver = new ResizeObserver(resizeCanvas);
+    resizeObserver.observe(container);
+    
     window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', resizeCanvas);
+    };
   }, []);
 
   // Mouse handlers for panning and selection
@@ -1041,13 +1049,13 @@ export function AgentVisualizerPanel() {
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Different views based on viewMode */}
         {viewMode === 'office' && (
           /* Canvas Area - Office View */
           <div 
             ref={containerRef}
-            className="flex-1 relative overflow-hidden cursor-crosshair"
+            className="flex-1 min-h-[400px] h-full relative overflow-hidden cursor-crosshair"
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -1057,9 +1065,9 @@ export function AgentVisualizerPanel() {
           >
             <canvas
               ref={canvasRef}
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 50%, #0a0a1a 100%)' }}
-          />
+              className="absolute inset-0 w-full h-full"
+              style={{ background: 'linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 50%, #0a0a1a 100%)' }}
+            />
           
           {/* Loading overlay */}
           {isLoading && (
