@@ -65,10 +65,12 @@ export function NavRail() {
 
   return (
     <>
-      {/* Mobile hamburger menu */}
+      {/* Mobile hamburger menu - fixed position safe area aware */}
       <button
         onClick={toggleSidebar}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded-lg text-white"
+        className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-gray-800 rounded-lg text-white shadow-lg active:bg-gray-700"
+        style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}
+        aria-label="Toggle menu"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -78,14 +80,14 @@ export function NavRail() {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-black/50 z-30"
+          className="lg:hidden fixed inset-0 bg-black/60 z-30 backdrop-blur-sm"
           onClick={toggleSidebar}
         />
       )}
 
       <nav
         className={cn(
-          'bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-200 h-screen overflow-y-auto fixed lg:relative z-40',
+          'bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-200 h-dvh md:h-screen overflow-y-auto fixed lg:relative z-40',
           sidebarOpen ? 'w-52' : 'w-16',
           // Hide on mobile when collapsed
           !sidebarOpen && 'lg:w-16 w-0 lg:relative',

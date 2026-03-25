@@ -22,14 +22,14 @@ export function HeaderBar() {
   };
 
   return (
-    <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-white">
+    <header className="bg-gray-800 border-b border-gray-700 px-3 md:px-6 py-3 md:py-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg md:text-xl font-semibold text-white truncate">
             {panelTitles[activePanel] || 'Dashboard'}
           </h1>
-          <p className="text-sm text-gray-400 mt-1">
-            Autonomous AI Startup Architecture
+          <p className="text-xs md:text-sm text-gray-400 hidden sm:block">
+            Autonomous AI Startup
           </p>
         </div>
 

@@ -60,11 +60,11 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-900">
+    <div className="flex h-dvh md:h-screen bg-gray-900 overflow-hidden">
       <NavRail />
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
+      <div className="flex-1 flex flex-col overflow-hidden w-full min-w-0">
         <HeaderBar />
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden md:overflow-auto">
           <Dashboard />
         </main>
       </div>
