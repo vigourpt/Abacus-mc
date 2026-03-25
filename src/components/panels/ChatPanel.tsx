@@ -101,6 +101,39 @@ export function ChatPanel() {
     setIsSending(true);
     const messageText = inputMessage.trim();
     
+    // Check for special commands
+    if (messageText.startsWith('/task ')) {
+      // Create a task from the message
+      const taskTitle = messageText.replace('/task ', '').trim();
+      try {
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: taskTitle,
+            description: 'Created from chat',
+            priority: 'medium',
+            status: 'todo',
+          }),
+        });
+        if (res.ok) {
+          const task = await res.json();
+          // Also process the task immediately
+          await fetch('/api/tasks/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId: task.id }),
+          });
+        }
+      } catch (err) {
+        console.error('Failed to create task:', err);
+      }
+      setInputMessage('');
+      setIsSending(false);
+      loadMessages();
+      return;
+    }
+    
     // Add user message immediately with pending state
     const tempId = `pending-${Date.now()}`;
     const userMessage: Message = {
@@ -122,9 +155,10 @@ export function ChatPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          channel: 'mission-control-test',
+          channelId: 'mission-control-test',
           content: messageText,
           format: 'markdown',
+          broadcast: true,
         }),
       });
       
@@ -184,12 +218,16 @@ export function ChatPanel() {
         </div>
       </div>
 
-      {/* Connection warning */}
-      {connectionStatus !== 'connected' && (
-        <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400 flex-shrink-0">
-          ⚠️ Not connected to OpenClaw. Connect via Gateways to send messages.
-        </div>
-      )}
+      {/* Connection warning / Commands help */}
+      <div className="mb-3 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-xs text-gray-400 flex-shrink-0 flex flex-wrap gap-3">
+        {connectionStatus !== 'connected' ? (
+          <span className="text-red-400">⚠️ Not connected to OpenClaw</span>
+        ) : (
+          <span>✓ Connected</span>
+        )}
+        <span className="hidden sm:inline">|</span>
+        <span><code className="bg-gray-700 px-1 rounded">/task [title]</code> to create & process a task</span>
+      </div>
 
       {/* Messages Area */}
       <div className="flex-1 bg-gray-800/50 rounded-lg border border-gray-700 p-3 md:p-4 space-y-3 overflow-y-auto min-h-0 mb-4">
@@ -250,7 +288,7 @@ export function ChatPanel() {
               handleSendMessage();
             }
           }}
-          placeholder={connectionStatus === 'connected' ? "Message agents..." : "Connect to OpenClaw first..."}
+          placeholder={connectionStatus === 'connected' ? "Message... (or /task to create task)" : "Connect to OpenClaw first..."}
           className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 disabled:opacity-50"
           disabled={isSending || connectionStatus !== 'connected'}
         />
