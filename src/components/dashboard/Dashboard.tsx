@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useAppStore } from '@/store';
 import { AgentCard } from './AgentCard';
 import { TaskSummary } from './TaskSummary';
@@ -30,12 +29,10 @@ import {
   HiringPanel,
   AgentVisualizerPanel,
   PipelinePanel,
-  StartupGeneratorModal,
 } from '@/components/panels';
 
 export function Dashboard() {
-  const { agents, tasks, activePanel, setActivePanel, addEvent } = useAppStore();
-  const [showStartupModal, setShowStartupModal] = useState(false);
+  const { agents, tasks, activePanel } = useAppStore();
 
   // If a specific panel is active, show that instead
   if (activePanel !== 'dashboard') {
@@ -50,66 +47,10 @@ export function Dashboard() {
     operations: agents.filter((a) => a.division === 'operations'),
   };
 
-  const handleStartupSuccess = (project: { name: string; taskCount: number }) => {
-    addEvent({
-      type: 'system',
-      payload: { text: `🚀 Startup "${project.name}" created with ${project.taskCount} tasks` },
-      timestamp: new Date(),
-    });
-    // Navigate to pipeline after a short delay
-    setTimeout(() => {
-      setActivePanel('pipeline');
-    }, 1500);
-  };
-
   return (
     <div className="h-full overflow-auto p-6 space-y-6">
-      {/* Quick Help Guide */}
-      <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-sm">
-        <div className="flex items-start gap-3">
-          <span className="text-xl">💡</span>
-          <div>
-            <h3 className="font-medium text-white mb-1">Getting Started</h3>
-            <ul className="text-gray-400 space-y-1">
-              <li>• <strong>Agents</strong> - View and manage your AI team in the left sidebar</li>
-              <li>• <strong>Tasks</strong> - Process tasks by sending them to OpenClaw agents</li>
-              <li>• <strong>Channels</strong> - Configure Telegram or CLI for agent communication</li>
-              <li>• <strong>Gateways</strong> - Connect to OpenClaw to enable agent functionality</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* IDEA → STARTUP Hero Section */}
-      <div className="bg-gradient-to-r from-cyan-900/30 via-blue-900/30 to-purple-900/30 rounded-xl border border-cyan-500/30 p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="text-4xl">🚀</span>
-            <div>
-              <h2 className="text-xl font-bold text-white">IDEA → STARTUP</h2>
-              <p className="text-gray-400 text-sm">
-                Transform your idea into a complete startup project with AI-powered automation
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowStartupModal(true)}
-            className="px-6 py-3 rounded-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/20"
-          >
-            Generate Startup
-          </button>
-        </div>
-      </div>
-
       {/* Quick Actions */}
       <QuickActions />
-
-      {/* Startup Generator Modal */}
-      <StartupGeneratorModal
-        isOpen={showStartupModal}
-        onClose={() => setShowStartupModal(false)}
-        onSuccess={handleStartupSuccess}
-      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-4 gap-4">
@@ -305,24 +246,6 @@ function AgentsPanel({ agents }: { agents: any[] }) {
 function TasksPanel({ tasks }: { tasks: any[] }) {
   return (
     <div className="space-y-6">
-      {/* Help Instructions */}
-      <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-4 text-sm">
-        <div className="flex items-start gap-3">
-          <span className="text-xl">📋</span>
-          <div>
-            <h3 className="font-medium text-white mb-1">Task Management</h3>
-            <p className="text-gray-400 mb-2">
-              Tasks are processed by sending them to OpenClaw agents. Make sure a gateway is connected before processing tasks.
-            </p>
-            <ul className="text-gray-500 text-xs space-y-1">
-              <li>• <strong>Todo:</strong> Tasks ready to be processed</li>
-              <li>• <strong>In Progress:</strong> Tasks currently being handled by agents</li>
-              <li>• <strong>Process:</strong> POST to /api/tasks/process to send a task to an agent</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-      
       <h2 className="text-xl font-semibold text-white">Task Board</h2>
       <TaskSummary tasks={tasks} expanded />
     </div>
