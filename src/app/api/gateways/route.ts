@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { generateId } from '@/lib/utils';
+import { getOpenClawClient } from '@/lib/openclaw-client';
 import type { GatewayConnection } from '@/types';
 
 interface GatewayRow {
@@ -25,7 +26,24 @@ export async function GET() {
     const stmt = db.prepare('SELECT * FROM gateway_connections ORDER BY created_at DESC');
     const rows = stmt.all() as GatewayRow[];
 
-    const gateways = rows.map(rowToGateway);
+    // Get actual connection state from OpenClaw client
+    const openclawClient = getOpenClawClient();
+    const clientState = openclawClient.getConnectionInfo();
+    const isActuallyConnected = clientState.status === 'connected';
+
+    // Merge database records with actual connection state
+    const gateways = rows.map(row => {
+      // Check if this gateway matches the current client connection
+      const isCurrentGateway = row.host === clientState.host && row.port === clientState.port;
+      
+      return {
+        ...rowToGateway(row),
+        // Use actual connection state if this is the current gateway
+        status: isCurrentGateway && isActuallyConnected ? 'connected' as const : (row.status as GatewayConnection['status']),
+        lastConnected: isCurrentGateway && isActuallyConnected ? new Date() : row.last_connected,
+        deviceIdentity: isCurrentGateway && isActuallyConnected ? clientState.deviceIdentity : (row.device_identity ? JSON.parse(row.device_identity) : undefined),
+      };
+    });
 
     // Return as array for easy consumption by frontend
     return NextResponse.json(gateways);

@@ -11,6 +11,17 @@ import {
   pullAgentsFromOpenClaw,
   bidirectionalSync,
 } from '@/lib/agent-sync';
+import {
+  mergeSkillsFromOpenClaw,
+  mergeToolsFromOpenClaw,
+  mergeModelsFromOpenClaw,
+  mergeAllResourcesFromOpenClaw,
+  initializeResourceTables,
+  getSyncedSkills,
+  getSyncedTools,
+  getSyncedModels,
+  getResourceCounts,
+} from '@/lib/openclaw-resource-sync';
 import { getOpenClawClient } from '@/lib/openclaw-client';
 import { createChildLogger } from '@/lib/logger';
 
@@ -83,12 +94,60 @@ export async function POST(request: NextRequest) {
           result,
         });
 
+      case 'skills':
+        // MERGE skills from OpenClaw (preserves existing MC data)
+        initializeResourceTables();
+        result = await mergeSkillsFromOpenClaw();
+        return NextResponse.json({
+          success: true,
+          action: 'skills',
+          result,
+          message: 'Skills merged. Existing Mission Control data preserved.',
+        });
+
+      case 'tools':
+        // MERGE tools from OpenClaw (preserves existing MC data)
+        initializeResourceTables();
+        result = await mergeToolsFromOpenClaw();
+        return NextResponse.json({
+          success: true,
+          action: 'tools',
+          result,
+          message: 'Tools merged. Existing Mission Control data preserved.',
+        });
+
+      case 'models':
+        // MERGE models from OpenClaw (preserves existing MC data)
+        initializeResourceTables();
+        result = await mergeModelsFromOpenClaw();
+        return NextResponse.json({
+          success: true,
+          action: 'models',
+          result,
+          message: 'Models merged. Existing Mission Control data preserved.',
+        });
+
+      case 'resources':
+        // MERGE all resources from OpenClaw (preserves existing MC data)
+        initializeResourceTables();
+        const beforeCounts = getResourceCounts();
+        const mergeResult = await mergeAllResourcesFromOpenClaw();
+        const afterCounts = getResourceCounts();
+        return NextResponse.json({
+          success: true,
+          action: 'resources',
+          result: mergeResult,
+          message: 'All resources merged. Existing Mission Control data preserved.',
+          beforeMerge: beforeCounts,
+          afterMerge: afterCounts,
+        });
+
       default:
         return NextResponse.json(
           {
             success: false,
             error: `Unknown action: ${action}`,
-            validActions: ['push', 'push_one', 'pull', 'bidirectional'],
+            validActions: ['push', 'push_one', 'pull', 'bidirectional', 'skills', 'tools', 'models', 'resources'],
           },
           { status: 400 }
         );

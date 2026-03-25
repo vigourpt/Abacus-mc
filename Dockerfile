@@ -39,6 +39,7 @@ COPY src/ ./src/
 COPY public/ ./public/
 COPY workspace/ ./workspace/
 COPY scripts/ ./scripts/
+COPY config/ ./config/
 COPY next.config.ts tsconfig.json tailwind.config.ts postcss.config.js ./
 
 # Build Next.js in standalone mode
@@ -55,6 +56,10 @@ RUN cp -r .next/static .next/standalone/.next/static
 RUN mkdir -p .next/standalone/.data
 # Copy workspace (agent soul.md files) into standalone
 RUN cp -r workspace .next/standalone/workspace
+RUN cp -r config .next/standalone/config
+
+# Copy worker.js for task processing
+COPY worker.js .next/standalone/worker.js
 
 # ---- Stage 3: Production runner ----
 FROM node:20-alpine AS production
@@ -70,6 +75,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 
 # Ensure .data directory exists with correct ownership
 RUN mkdir -p .data && chown -R nextjs:nodejs .data
+RUN mkdir -p projects && chown -R nextjs:nodejs projects
 
 # Environment variables
 ENV NODE_ENV=production

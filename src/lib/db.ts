@@ -177,6 +177,56 @@ export function runMigrations() {
       created_at TEXT DEFAULT (datetime('now'))
     )`,
 
+    // Migration 11: OpenClaw skills
+    `CREATE TABLE IF NOT EXISTS openclaw_skills (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      status TEXT DEFAULT 'missing',
+      source TEXT,
+      commands TEXT,
+      auto_exec INTEGER DEFAULT 0,
+      tags TEXT,
+      synced_at TEXT
+    )`,
+
+    // Migration 12: OpenClaw tools
+    `CREATE TABLE IF NOT EXISTS openclaw_tools (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT,
+      description TEXT,
+      enabled INTEGER DEFAULT 1,
+      permissions TEXT,
+      synced_at TEXT
+    )`,
+
+    // Migration 13: OpenClaw models
+    `CREATE TABLE IF NOT EXISTS openclaw_models (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      provider TEXT,
+      input_modes TEXT,
+      context_window INTEGER,
+      local INTEGER DEFAULT 0,
+      auth_required INTEGER DEFAULT 1,
+      tags TEXT,
+      aliases TEXT,
+      synced_at TEXT
+    )`,
+
+    // Migration 14: Webhooks
+    `CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      method TEXT DEFAULT 'POST',
+      events TEXT DEFAULT '[]',
+      status TEXT DEFAULT 'active',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`,
+
     // Indexes
     `CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)`,
     `CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to)`,
@@ -189,6 +239,12 @@ export function runMigrations() {
     `CREATE INDEX IF NOT EXISTS idx_activity_created_at ON activity_log(created_at)`,
     `CREATE INDEX IF NOT EXISTS idx_task_dependencies_task ON task_dependencies(task_id)`,
     `CREATE INDEX IF NOT EXISTS idx_collaborations_task ON agent_collaborations(task_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_openclaw_skills_status ON openclaw_skills(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_openclaw_skills_source ON openclaw_skills(source)`,
+    `CREATE INDEX IF NOT EXISTS idx_openclaw_tools_category ON openclaw_tools(category)`,
+    `CREATE INDEX IF NOT EXISTS idx_openclaw_tools_enabled ON openclaw_tools(enabled)`,
+    `CREATE INDEX IF NOT EXISTS idx_openclaw_models_provider ON openclaw_models(provider)`,
+    `CREATE INDEX IF NOT EXISTS idx_openclaw_models_local ON openclaw_models(local)`,
   ];
 
   for (const migration of migrations) {

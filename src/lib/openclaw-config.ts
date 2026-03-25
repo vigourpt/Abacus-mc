@@ -58,6 +58,8 @@ export interface ChannelConfig {
   discordChannel?: string;
   // Telegram
   telegramChatId?: string;
+  telegramBotToken?: string;
+  telegramGroups?: Record<string, GroupPolicy>;
   // WhatsApp
   whatsappNumber?: string;
   // Email
@@ -66,6 +68,11 @@ export interface ChannelConfig {
   webhookUrl?: string;
   apiKey?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface GroupPolicy {
+  groupPolicy?: 'open' | 'restricted' | 'admin_only';
+  [key: string]: unknown;
 }
 
 // Agent-to-channel mapping
@@ -97,7 +104,7 @@ const DEFAULT_CONFIG: OpenClawConfig = {
   connection: {
     host: process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1',
     port: parseInt(process.env.OPENCLAW_GATEWAY_PORT || '18789'),
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.OPENCLAW_GATEWAY_SECURE === 'true',
     reconnectInterval: 5000,
     maxReconnectAttempts: 10,
     pingInterval: 30000,
@@ -285,6 +292,36 @@ export function getWebSocketUrl(config?: OpenClawConnectionConfig): string {
 export function clearConfigCache(): void {
   cachedConfig = null;
 }
+
+/**
+ * Set a specific channel config property
+ */
+export function setChannelConfig(
+  channelId: string,
+  key: string,
+  value: unknown
+): OpenClawConfig {
+  const config = getOpenClawConfig();
+  const channel = config.channels.find(c => c.id === channelId);
+
+  if (!channel) {
+    throw new Error(`Channel not found: ${channelId}`);
+  }
+
+  const keys = key.split('.');
+  let target: Record<string, unknown> = channel.config as Record<string, unknown>;
+  
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!target[keys[i]]) {
+      target[keys[i]] = {};
+    }
+    target = target[keys[i]] as Record<string, unknown>;
+  }
+  
+  target[keys[keys.length - 1]] = value;
+  saveOpenClawConfig(config);
+  return config;
+}
 // Export for external use
 export default {
   getOpenClawConfig,
@@ -298,4 +335,5 @@ export default {
   unmapAgentFromChannel,
   getWebSocketUrl,
   clearConfigCache,
+  setChannelConfig,
 };

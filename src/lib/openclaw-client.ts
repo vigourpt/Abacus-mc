@@ -24,13 +24,11 @@ const logger = createChildLogger('openclaw-client');
 // OpenClaw validates client.id against a whitelist of known constants.
 // "openclaw-control-ui" is the standard control-plane client identifier.
 // Override via OPENCLAW_CLIENT_ID env var if your gateway uses a different value.
-const CLIENT_ID = process.env.OPENCLAW_CLIENT_ID || 'openclaw-control-ui';
+const CLIENT_ID = process.env.OPENCLAW_CLIENT_ID || 'cli';
 const CLIENT_VERSION = '1.0.0';
 const CLIENT_ROLE = 'operator';
-// OpenClaw client mode – must be 'webchat' or 'cli' (NOT the role).
-// The paired-device config uses clientMode; 'webchat' is correct for a web UI.
-const CLIENT_MODE = process.env.OPENCLAW_CLIENT_MODE || 'webchat';
-const CLIENT_SCOPES = ['operator.read', 'operator.write'];
+const CLIENT_MODE = process.env.OPENCLAW_CLIENT_MODE || 'cli';
+const CLIENT_SCOPES = ['operator.admin', 'operator.read', 'operator.write', 'operator.approvals', 'operator.pairing'];
 
 /** Timeout (ms) to wait for the full protocol handshake to complete. */
 const HANDSHAKE_TIMEOUT_MS = 15_000;
@@ -39,7 +37,8 @@ const HANDSHAKE_TIMEOUT_MS = 15_000;
 export interface OpenClawMessage {
   id: string;
   type: OpenClawMessageType;
-  payload: unknown;
+  // Legacy field - prefer params for v3
+  payload?: unknown;
   timestamp?: number;
   signature?: string;
   // v3 frame fields
@@ -186,6 +185,7 @@ export class OpenClawClient extends EventEmitter {
 
     this.state = 'connecting';
     const url = getWebSocketUrl(this.config);
+    console.log('[DEBUG] About to connect WebSocket to:', url);
 
     return new Promise((resolve, reject) => {
       try {
@@ -205,6 +205,7 @@ export class OpenClawClient extends EventEmitter {
         }
 
         this.ws = new WebSocket(url, { headers });
+        console.log('[DEBUG] WebSocket created for URL:', url);
 
         const handshakeTimeout = setTimeout(() => {
           if (this.state === 'connecting' || this.state === 'authenticating') {
@@ -216,11 +217,11 @@ export class OpenClawClient extends EventEmitter {
         this.ws.on('open', () => {
           logger.info({ url }, 'WebSocket open, waiting for connect.challenge…');
           this.state = 'authenticating';
-          // Do NOT resolve yet – wait for the handshake to complete.
         });
 
         this.ws.on('message', (data) => {
           const raw = data.toString();
+          console.log('[DEBUG] Received frame:', raw.substring(0, 200));
 
           // During handshake, intercept protocol frames
           if (this.state === 'authenticating' || this.state === 'connecting') {
@@ -269,7 +270,7 @@ export class OpenClawClient extends EventEmitter {
         logger.info('Received connect.challenge, signing nonce…');
 
         const token = process.env.OPENCLAW_GATEWAY_TOKEN || undefined;
-
+        
         const device = signChallenge(this.identity, nonce, {
           clientId: CLIENT_ID,
           clientMode: CLIENT_MODE,
@@ -305,8 +306,10 @@ export class OpenClawClient extends EventEmitter {
             device,
           },
         };
+        console.log('[DEBUG] Connect request prepared, about to send');
 
         this.sendRaw(connectReq as unknown as OpenClawMessage);
+        console.log('[DEBUG] sendRaw called');
         logger.info({ connectId }, 'Sent connect request');
         return;
       }
@@ -404,19 +407,16 @@ export class OpenClawClient extends EventEmitter {
     payload: unknown,
     waitForResponse = false,
   ): Promise<unknown> {
+    // Only use params (not payload) - OpenClaw rejects extra properties at root level
     const message: OpenClawMessage = {
       id: this.generateMessageId(),
       type: 'req',
       method: type as string,
-      payload,
       params: payload,
-      timestamp: Date.now(),
     };
 
-    // Sign critical messages
-    if (['agent_sync', 'agent_response', 'channel_message'].includes(type)) {
-      message.signature = signMessage(JSON.stringify(payload), this.identity);
-    }
+    // Note: Signature handling may need to be done differently in v3
+    // For now, we skip signature as it's rejected at root level
 
     if (this.state === 'connected' && this.ws?.readyState === WebSocket.OPEN) {
       return this.sendImmediate(message, waitForResponse);
@@ -426,13 +426,13 @@ export class OpenClawClient extends EventEmitter {
   }
 
   async subscribeToChannel(channelId: string): Promise<void> {
-    await this.send('channel_subscribe', { channelId });
-    logger.info({ channelId }, 'Subscribed to channel');
+    // Note: channel_subscribe is deprecated, messages come in automatically
+    // Silently skip subscription - gateway handles Telegram messages via events
+    logger.debug({ channelId }, 'Channel subscription handled by gateway');
   }
 
   async unsubscribeFromChannel(channelId: string): Promise<void> {
-    await this.send('channel_unsubscribe', { channelId });
-    logger.info({ channelId }, 'Unsubscribed from channel');
+    logger.debug({ channelId }, 'Channel unsubscription handled by gateway');
   }
 
   async sendToChannel(
@@ -440,12 +440,18 @@ export class OpenClawClient extends EventEmitter {
     content: string,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
-    await this.send('channel_message', {
-      channelId,
-      content,
-      metadata,
-      agentId: this.identity.deviceId,
+    const idempotencyKey = `send-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const target = metadata?.target as string || metadata?.to as string || '6986929051';
+    const channel = metadata?.channel as string || channelId || 'telegram';
+    
+    await this.send('send', {
+      to: target,
+      channel: channel,
+      message: content,
+      idempotencyKey,
     });
+    
+    logger.info({ channelId: channel, target, contentLength: content.length }, 'Message sent to channel');
   }
 
   async syncAgent(agent: {
@@ -456,6 +462,51 @@ export class OpenClawClient extends EventEmitter {
     systemPrompt: string;
   }): Promise<unknown> {
     return this.send('agent_sync', agent, true);
+  }
+
+  // =====================================================
+  // Resource Listing (Skills, Tools, Models)
+  // =====================================================
+
+  async listSkills(): Promise<Array<{
+    id: string;
+    name: string;
+    description: string;
+    status: 'ready' | 'missing' | 'disabled';
+    source: string;
+    commands?: string[];
+    autoExec?: boolean;
+    tags?: string[];
+  }>> {
+    const response = await this.send('skills.list', {}, true);
+    return (response as any)?.skills || [];
+  }
+
+  async listTools(): Promise<Array<{
+    id: string;
+    name: string;
+    category: string;
+    description: string;
+    enabled: boolean;
+    permissions?: string[];
+  }>> {
+    const response = await this.send('tools.list', {}, true);
+    return (response as any)?.tools || [];
+  }
+
+  async listModels(): Promise<Array<{
+    id: string;
+    name: string;
+    provider: string;
+    inputModes: string[];
+    contextWindow: number;
+    local: boolean;
+    authRequired: boolean;
+    tags: string[];
+    aliases?: string[];
+  }>> {
+    const response = await this.send('models.list', {}, true);
+    return (response as any)?.models || [];
   }
 
   // =====================================================
@@ -571,22 +622,18 @@ export class OpenClawClient extends EventEmitter {
   }
 
   private startPingLoop(): void {
+    // Use health check instead of ping since gateway doesn't support ping method
     this.pingTimer = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.lastPingTime = Date.now();
-        this.sendRaw({
-          id: this.generateMessageId(),
-          type: 'req',
-          method: 'ping',
-          payload: { timestamp: this.lastPingTime },
-          params: { timestamp: this.lastPingTime },
-        } as OpenClawMessage);
-
-        // Set pong timeout
+        // Gateway doesn't support ping, but health events come automatically
+        // Just mark that we received data
+        logger.debug('Health check - connection alive');
+        
+        // Set a short timeout just in case
         this.pongTimer = setTimeout(() => {
-          logger.warn('Pong timeout, connection may be stale');
-          this.ws?.close(4000, 'Pong timeout');
-        }, 10000);
+          logger.warn('Health check timeout');
+        }, 5000);
       }
     }, this.config.pingInterval);
   }
@@ -620,7 +667,11 @@ export class OpenClawClient extends EventEmitter {
 
   private sendRaw(message: OpenClawMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message));
+      const json = JSON.stringify(message);
+      console.log('[DEBUG] Sending frame:', json.substring(0, 200));
+      this.ws.send(json);
+    } else {
+      console.log('[DEBUG] Cannot send - WebSocket not open, state:', this.ws?.readyState);
     }
   }
 

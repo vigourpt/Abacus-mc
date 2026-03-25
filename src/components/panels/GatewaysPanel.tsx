@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAppStore } from '@/store';
 
 interface Gateway {
   id: string;
@@ -18,6 +19,7 @@ export function GatewaysPanel() {
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const { setGatewayConnection } = useAppStore();
   const [newGateway, setNewGateway] = useState({ name: '', host: '', port: '18789' });
   const [error, setError] = useState<string | null>(null);
 
@@ -73,9 +75,14 @@ export function GatewaysPanel() {
       });
 
       if (res.ok) {
+        const data = await res.json();
         setGateways(prev => prev.map(g =>
           g.id === id ? { ...g, status: 'connected', lastHeartbeat: new Date().toISOString() } : g
         ));
+        // Update global gateway connection state
+        if (data.connection) {
+          setGatewayConnection(data.connection);
+        }
       } else {
         setGateways(prev => prev.map(g =>
           g.id === id ? { ...g, status: 'disconnected' } : g
@@ -128,6 +135,24 @@ export function GatewaysPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Help Instructions */}
+      <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-4 text-sm">
+        <div className="flex items-start gap-3">
+          <span className="text-xl">🔗</span>
+          <div>
+            <h3 className="font-medium text-white mb-1">Gateway Connections</h3>
+            <p className="text-gray-400 mb-2">
+              Connect to OpenClaw gateways to enable agent functionality. Each gateway represents an OpenClaw instance that manages agents and processes tasks.
+            </p>
+            <ul className="text-gray-500 text-xs space-y-1">
+              <li>• <strong>Status:</strong> Green = connected, Red = disconnected</li>
+              <li>• <strong>Port:</strong> Default OpenClaw port is 45397</li>
+              <li>• <strong>Connection:</strong> Click the connect button to establish connection</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">Gateway Connections</h2>
         <button

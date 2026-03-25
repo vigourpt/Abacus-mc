@@ -64,6 +64,22 @@ export function Dashboard() {
 
   return (
     <div className="h-full overflow-auto p-6 space-y-6">
+      {/* Quick Help Guide */}
+      <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-sm">
+        <div className="flex items-start gap-3">
+          <span className="text-xl">💡</span>
+          <div>
+            <h3 className="font-medium text-white mb-1">Getting Started</h3>
+            <ul className="text-gray-400 space-y-1">
+              <li>• <strong>Agents</strong> - View and manage your AI team in the left sidebar</li>
+              <li>• <strong>Tasks</strong> - Process tasks by sending them to OpenClaw agents</li>
+              <li>• <strong>Channels</strong> - Configure Telegram or CLI for agent communication</li>
+              <li>• <strong>Gateways</strong> - Connect to OpenClaw to enable agent functionality</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {/* IDEA → STARTUP Hero Section */}
       <div className="bg-gradient-to-r from-cyan-900/30 via-blue-900/30 to-purple-900/30 rounded-xl border border-cyan-500/30 p-6">
         <div className="flex items-center justify-between">
@@ -289,6 +305,24 @@ function AgentsPanel({ agents }: { agents: any[] }) {
 function TasksPanel({ tasks }: { tasks: any[] }) {
   return (
     <div className="space-y-6">
+      {/* Help Instructions */}
+      <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-4 text-sm">
+        <div className="flex items-start gap-3">
+          <span className="text-xl">📋</span>
+          <div>
+            <h3 className="font-medium text-white mb-1">Task Management</h3>
+            <p className="text-gray-400 mb-2">
+              Tasks are processed by sending them to OpenClaw agents. Make sure a gateway is connected before processing tasks.
+            </p>
+            <ul className="text-gray-500 text-xs space-y-1">
+              <li>• <strong>Todo:</strong> Tasks ready to be processed</li>
+              <li>• <strong>In Progress:</strong> Tasks currently being handled by agents</li>
+              <li>• <strong>Process:</strong> POST to /api/tasks/process to send a task to an agent</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
       <h2 className="text-xl font-semibold text-white">Task Board</h2>
       <TaskSummary tasks={tasks} expanded />
     </div>

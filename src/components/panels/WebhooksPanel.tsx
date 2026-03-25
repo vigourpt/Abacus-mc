@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface Webhook {
   id: string;
@@ -15,9 +15,60 @@ interface Webhook {
 }
 
 export function WebhooksPanel() {
-  const [webhooks] = useState<Webhook[]>([]);
+  const [webhooks, setWebhooks] = useState<Webhook[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newWebhook, setNewWebhook] = useState({ name: '', url: '', events: '' });
+
+  const fetchWebhooks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/webhooks');
+      if (res.ok) {
+        const data = await res.json();
+        setWebhooks(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch webhooks:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWebhooks();
+  }, [fetchWebhooks]);
+
+  const handleCreateWebhook = async () => {
+    if (!newWebhook.name || !newWebhook.url) return;
+    
+    try {
+      const res = await fetch('/api/webhooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newWebhook),
+      });
+      
+      if (res.ok) {
+        const created = await res.json();
+        setWebhooks(prev => [created, ...prev]);
+        setNewWebhook({ name: '', url: '', events: '' });
+        setShowCreateForm(false);
+      }
+    } catch (err) {
+      console.error('Failed to create webhook:', err);
+    }
+  };
+
+  const handleDeleteWebhook = async (id: string) => {
+    try {
+      const res = await fetch(`/api/webhooks?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setWebhooks(prev => prev.filter(w => w.id !== id));
+      }
+    } catch (err) {
+      console.error('Failed to delete webhook:', err);
+    }
+  };
 
   const statusColors: Record<string, string> = {
     active: 'text-green-400 bg-green-400/10',
@@ -27,6 +78,24 @@ export function WebhooksPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Help Instructions */}
+      <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-4 text-sm">
+        <div className="flex items-start gap-3">
+          <span className="text-xl">🔔</span>
+          <div>
+            <h3 className="font-medium text-white mb-1">Webhooks</h3>
+            <p className="text-gray-400 mb-2">
+              Webhooks allow external services to receive notifications when events occur in your startup system.
+            </p>
+            <ul className="text-gray-500 text-xs space-y-1">
+              <li>• <strong>Events:</strong> task.completed, agent.error, task.created, agent.response</li>
+              <li>• <strong>Method:</strong> POST is recommended for most integrations</li>
+              <li>• <strong>Security:</strong> Your webhook URL should accept POST requests with JSON body</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">Webhooks</h2>
         <button
@@ -72,13 +141,21 @@ export function WebhooksPanel() {
               className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white placeholder-gray-500"
             />
           </div>
-          <p className="text-xs text-gray-500">
-            Webhook support is coming soon. This form will be connected to the webhook management system.
-          </p>
+          <button
+            onClick={handleCreateWebhook}
+            className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+          >
+            Create Webhook
+          </button>
         </div>
       )}
 
-      {webhooks.length === 0 && !showCreateForm ? (
+      {loading ? (
+        <div className="text-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500 mx-auto"></div>
+          <p className="text-gray-400 text-sm mt-4">Loading webhooks...</p>
+        </div>
+      ) : webhooks.length === 0 && !showCreateForm ? (
         <div className="text-center py-16">
           <span className="text-5xl block mb-4">🔔</span>
           <h3 className="text-lg font-medium text-white mb-2">No Webhooks Configured</h3>
@@ -117,6 +194,12 @@ export function WebhooksPanel() {
                   <span className={`px-2 py-1 rounded text-xs ${statusColors[webhook.status]}`}>
                     {webhook.status}
                   </span>
+                  <button
+                    onClick={() => handleDeleteWebhook(webhook.id)}
+                    className="text-red-400 hover:text-red-300 text-sm"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
 
@@ -134,7 +217,7 @@ export function WebhooksPanel() {
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-gray-500 text-xs">Last Triggered</p>
-                  <p className="text-white">{new Date(webhook.lastTriggered).toLocaleString()}</p>
+                  <p className="text-white">{webhook.lastTriggered ? new Date(webhook.lastTriggered).toLocaleString() : 'Never'}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs">Success Rate</p>

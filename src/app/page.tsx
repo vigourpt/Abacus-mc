@@ -7,7 +7,7 @@ import { NavRail } from '@/components/layout/NavRail';
 import { HeaderBar } from '@/components/layout/HeaderBar';
 
 export default function Home() {
-  const { setAgents, setTasks, setLoading } = useAppStore();
+  const { setAgents, setTasks, setLoading, setGatewayConnection } = useAppStore();
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -28,6 +28,15 @@ export default function Home() {
           setTasks(tasks);
         }
 
+        // Check gateway connection status
+        const statusRes = await fetch('/api/openclaw/status');
+        if (statusRes.ok) {
+          const status = await statusRes.json();
+          if (status.success && status.connection) {
+            setGatewayConnection(status.connection);
+          }
+        }
+
         setInitialized(true);
       } catch (error) {
         console.error('Failed to initialize:', error);
@@ -37,7 +46,7 @@ export default function Home() {
     }
 
     initialize();
-  }, [setAgents, setTasks, setLoading]);
+  }, [setAgents, setTasks, setLoading, setGatewayConnection]);
 
   if (!initialized) {
     return (

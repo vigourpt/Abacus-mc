@@ -153,6 +153,7 @@ export class MessageRouter extends EventEmitter {
       // Format the message based on channel requirements
       const formattedContent = await this.formatOutgoingMessage(response);
 
+      // Use WebSocket API with chat.send method
       await client.sendToChannel(response.channelId, formattedContent, {
         agentId: response.agentId,
         replyTo: response.replyTo,
@@ -210,6 +211,44 @@ export class MessageRouter extends EventEmitter {
 
     logger.info({ sent, total: targetChannels.length }, 'Broadcast completed');
     return sent;
+  }
+
+  /**
+   * Send message via OpenClaw CLI fallback
+   * This is used when the WebSocket API fails
+   */
+  private async sendViaCli(channelId: string, content: string): Promise<void> {
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
+
+    // Map channel names to target IDs
+    const channelTargets: Record<string, string> = {
+      telegram: process.env.TELEGRAM_TARGET_ID || '6986929051', // Default to Dan's ID
+    };
+
+    const target = channelTargets[channelId] || channelId;
+
+    // Escape the message content for shell
+    const escapedContent = content.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+
+    // Use docker exec to run openclaw CLI from the openclaw container
+    const command = `docker exec openclaw-whdd-openclaw-1 openclaw message send --channel ${channelId} --target ${target} --message "${escapedContent}"`;
+
+    logger.info({ channelId, target, command: command.substring(0, 100) }, 'Sending via CLI fallback');
+
+    try {
+      const { stdout, stderr } = await execAsync(command, { timeout: 10000 });
+
+      if (stderr && !stderr.includes('warning')) {
+        logger.warn({ stderr }, 'CLI stderr');
+      }
+
+      logger.info({ stdout }, 'CLI send completed');
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'CLI fallback failed');
+      throw error;
+    }
   }
 
   // =====================================================

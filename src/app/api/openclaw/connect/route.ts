@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getOpenClawClient();
+    console.log('[DEBUG API] Got OpenClaw client, state:', client.getState());
     const router = getMessageRouter();
 
     // Check if already connected
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Attempt connection
+    console.log('[DEBUG API] About to call client.connect()');
     await client.connect();
 
     // Start message router
@@ -74,7 +76,10 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error({ error }, 'Failed to connect to OpenClaw gateway');
+    console.log('[DEBUG API] Caught error:', error);
+    console.log('[DEBUG API] Error message:', error instanceof Error ? error.message : String(error));
+    console.log('[DEBUG API] Error stack:', error instanceof Error ? error.stack : 'no stack');
+    logger.error({ error, errorMessage: error instanceof Error ? error.message : String(error) }, 'Failed to connect to OpenClaw gateway');
 
     return NextResponse.json(
       {

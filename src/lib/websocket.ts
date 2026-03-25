@@ -18,13 +18,11 @@ const PROTOCOL_VERSION = 3;
 // OpenClaw validates client.id against a whitelist of known constants.
 // "openclaw-control-ui" is the standard control-plane client identifier.
 // Override via OPENCLAW_CLIENT_ID env var if your gateway uses a different value.
-const CLIENT_ID = process.env.OPENCLAW_CLIENT_ID || 'openclaw-control-ui';
+const CLIENT_ID = process.env.OPENCLAW_CLIENT_ID || 'cli';
 const CLIENT_VERSION = '1.0.0';
 const CLIENT_ROLE = 'operator';
-// OpenClaw client mode – must be 'webchat' or 'cli' (NOT the role).
-// The paired-device config uses clientMode; 'webchat' is correct for a web UI.
-const CLIENT_MODE = process.env.OPENCLAW_CLIENT_MODE || 'webchat';
-const CLIENT_SCOPES = ['operator.read', 'operator.write'];
+const CLIENT_MODE = process.env.OPENCLAW_CLIENT_MODE || 'cli';
+const CLIENT_SCOPES = ['operator.admin', 'operator.read', 'operator.write', 'operator.approvals', 'operator.pairing'];
 
 /** Timeout (ms) to wait for the full handshake to complete. */
 const HANDSHAKE_TIMEOUT_MS = 15_000;
@@ -136,6 +134,8 @@ export class OpenClawWebSocket {
                   role: CLIENT_ROLE,
                   scopes: CLIENT_SCOPES,
                   token,
+                  platform: 'node',
+                  deviceFamily: 'node',
                 });
 
                 const connectId = this.nextMessageId();

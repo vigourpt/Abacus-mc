@@ -18,6 +18,39 @@ const logger = createChildLogger('device-identity');
 const IDENTITY_PATH = path.join(process.cwd(), '.data', 'device-identity.json');
 
 // =====================================================
+// Base64 URL Encoding (matching OpenClaw)
+// =====================================================
+
+function base64UrlEncode(buffer: Buffer | Uint8Array): string {
+  return buffer.toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+// =====================================================
+// Node.js Crypto Signing (for OpenClaw compatibility)
+// =====================================================
+
+export function signWithNodeCrypto(privateKeyPem: string, message: string): string {
+  const key = crypto.createPrivateKey(privateKeyPem);
+  const signature = crypto.sign(null, Buffer.from(message, 'utf8'), key);
+  return base64UrlEncode(signature);
+}
+
+export function getPublicKeyFromPem(privateKeyPem: string): string {
+  const publicKeyDer = crypto.createPublicKey(privateKeyPem).export({
+    type: 'spki',
+    format: 'der',
+  });
+  const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+  if (publicKeyDer.length === ED25519_SPKI_PREFIX.length + 32) {
+    return base64UrlEncode(publicKeyDer.slice(ED25519_SPKI_PREFIX.length));
+  }
+  return base64UrlEncode(Buffer.from(publicKeyDer.slice(-32)));
+}
+
+// =====================================================
 // PEM Key Parsing & Conversion
 // =====================================================
 
@@ -176,8 +209,8 @@ export function resolvePrivateKey(keyString: string): Uint8Array {
     return keyPair.secretKey; // 64 bytes: seed || publicKey
   }
 
-  // Standard base64-encoded nacl secret key (64 bytes)
-  const decoded = naclUtil.decodeBase64(keyString);
+  // Base64-encoded nacl secret key (64 bytes) - handle URL-safe base64
+  const decoded = decodeBase64Safe(keyString);
   if (decoded.length === 64) {
     return decoded;
   }
@@ -196,6 +229,22 @@ export function resolvePrivateKey(keyString: string): Uint8Array {
 }
 
 /**
+ * Decode base64 (handles both standard and URL-safe).
+ */
+function decodeBase64Safe(input: string): Uint8Array {
+  if (!input || typeof input !== 'string') {
+    throw new Error(`decodeBase64Safe called with invalid input: ${JSON.stringify(input)}`);
+  }
+  let standard = input.replace(/-/g, '+').replace(/_/g, '/');
+  // Add padding if needed
+  const pad = standard.length % 4;
+  if (pad === 2) standard += '==';
+  else if (pad === 3) standard += '=';
+  const decoded = Buffer.from(standard, 'base64');
+  return new Uint8Array(decoded);
+}
+
+/**
  * Resolve the public key from a private key string.
  * Useful when only a PEM private key is provided and we need the public key.
  */
@@ -205,7 +254,7 @@ export function resolvePublicKey(privateKeyString: string): Uint8Array {
     return keyPair.publicKey;
   }
 
-  const decoded = naclUtil.decodeBase64(privateKeyString);
+  const decoded = decodeBase64Safe(privateKeyString);
   if (decoded.length === 64) {
     // nacl secret key: last 32 bytes are the public key
     return decoded.subarray(32);
@@ -301,7 +350,6 @@ export function deriveDeviceIdFromPublicKey(publicKeyBase64: string): string {
  * Generate a new Ed25519 key pair for device identity
  */
 export function generateDeviceIdentity(): DeviceIdentity {
-  const keyPair = nacl.sign.keyPair();
   const publicKeyBase64 = naclUtil.encodeBase64(keyPair.publicKey);
   // OpenClaw requires deviceId = SHA-256(rawPublicKey).hex
   const deviceId = deriveDeviceIdFromPublicKey(publicKeyBase64);
@@ -365,25 +413,17 @@ export function getOrCreateDeviceIdentity(): DeviceIdentity {
     // Check if we have a saved identity with a matching public key
     const saved = loadDeviceIdentity();
     if (saved && saved.publicKey === envKeys.publicKey) {
-      // Update the private key in case the format changed
+      // Update the private key in case the format changed, and ensure deviceId is derived from public key
       saved.privateKey = envKeys.privateKey;
       saved.publicKey = envKeys.publicKey;
-      // Ensure deviceId is derived correctly (SHA-256 of public key)
-      const correctDeviceId = deriveDeviceIdFromPublicKey(envKeys.publicKey);
-      if (saved.deviceId !== correctDeviceId) {
-        logger.info(
-          { oldDeviceId: saved.deviceId, newDeviceId: correctDeviceId },
-          'Migrating deviceId from UUID to SHA-256(publicKey).hex format'
-        );
-        saved.deviceId = correctDeviceId;
-        saveDeviceIdentity(saved);
-      }
+      saved.deviceId = deriveDeviceIdFromPublicKey(envKeys.publicKey);
       return saved;
     }
 
     // Create a new identity from the environment key
     // OpenClaw requires deviceId = SHA-256(rawPublicKey).hex
     const derivedDeviceId = deriveDeviceIdFromPublicKey(envKeys.publicKey);
+    logger.info({ derivedDeviceId, envPublicKey: envKeys.publicKey }, 'Creating identity with derived deviceId');
     const identity: DeviceIdentity = {
       publicKey: envKeys.publicKey,
       privateKey: envKeys.privateKey,
@@ -418,14 +458,33 @@ export function getOrCreateDeviceIdentity(): DeviceIdentity {
 }
 
 /**
+ * Convert a nacl Ed25519 secret key (64 bytes) to PKCS#8 PEM format.
+ */
+function naclKeyToPem(naclSecretKey: Uint8Array): string {
+  const seed = naclSecretKey.slice(0, 32);
+  const pkcs8Header = Buffer.from('302e020100300506032b657004220420', 'hex');
+  const pkcs8Key = Buffer.concat([pkcs8Header, Buffer.from(seed)]);
+  const base64Key = pkcs8Key.toString('base64');
+  return '-----BEGIN PRIVATE KEY-----\n' + base64Key.match(/.{1,64}/g).join('\n') + '\n-----END PRIVATE KEY-----';
+}
+
+/**
  * Sign a message using the device's private key.
- * Handles both raw nacl base64 keys and PEM-format keys.
+ * Always uses Node.js crypto for signing (matching OpenClaw's approach).
  */
 export function signMessage(message: string, identity: DeviceIdentity): string {
-  const privateKey = resolvePrivateKey(identity.privateKey);
-  const messageBytes = naclUtil.decodeUTF8(message);
-  const signature = nacl.sign.detached(messageBytes, privateKey);
-  return naclUtil.encodeBase64(signature);
+  let pemKey: string;
+
+  if (isPEMFormat(identity.privateKey)) {
+    pemKey = identity.privateKey;
+  } else {
+    const naclKey = resolvePrivateKey(identity.privateKey);
+    pemKey = naclKeyToPem(naclKey);
+  }
+
+  const privateKey = crypto.createPrivateKey(pemKey);
+  const signature = crypto.sign(null, Buffer.from(message, 'utf8'), privateKey);
+  return base64UrlEncode(signature);
 }
 
 /**
@@ -438,8 +497,8 @@ export function verifySignature(
 ): boolean {
   try {
     const messageBytes = naclUtil.decodeUTF8(message);
-    const signatureBytes = naclUtil.decodeBase64(signature);
-    const publicKeyBytes = naclUtil.decodeBase64(publicKey);
+    const signatureBytes = decodeBase64Safe(signature);
+    const publicKeyBytes = decodeBase64Safe(publicKey);
     return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
   } catch {
     return false;
@@ -473,22 +532,8 @@ export function createAuthPayload(identity: DeviceIdentity): {
 // =====================================================
 
 /**
- * Build the v2 signature payload from the challenge nonce and connection params.
- *
- * OpenClaw v2 signature payload format (pipe-delimited):
- *   v2|{deviceId}|{clientId}|{clientMode}|{role}|{scopes}|{signedAtMs}|{token}|{nonce}
- *
- * Where:
- *   - deviceId = SHA-256(rawPublicKey).hex
- *   - clientId = registered client identifier (e.g. "openclaw-control-ui", "cli", "webchat")
- *   - clientMode = "webchat" or "cli" (NOT the role)
- *   - role = "operator" or "node"
- *   - scopes = comma-separated scope list (e.g. "operator.read,operator.write")
- *   - signedAtMs = Date.now() timestamp in milliseconds
- *   - token = auth token if any, or empty string
- *   - nonce = server-provided nonce from connect.challenge
- *
- * The entire UTF-8 string is signed with Ed25519.
+ * Build the v3 signature payload from the challenge nonce and connection params.
+ * Must match OpenClaw's expected format: v3|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce|platform|deviceFamily
  */
 function buildV2SignaturePayload(params: {
   deviceId: string;
@@ -499,27 +544,26 @@ function buildV2SignaturePayload(params: {
   signedAtMs: number;
   nonce: string;
   token?: string;
+  platform?: string;
+  deviceFamily?: string;
 }): string {
-  const scopeStr = [...params.scopes].sort().join(',');
-  const tokenStr = params.token || '';
-  const payload = [
-    'v2',
+  const scopeStr = params.scopes.join(',');
+  const token = params.token ?? '';
+  const platform = params.platform ?? '';
+  const deviceFamily = params.deviceFamily ?? '';
+  return [
+    'v3',
     params.deviceId,
     params.clientId,
     params.clientMode,
     params.role,
     scopeStr,
-    params.signedAtMs.toString(),
-    tokenStr,
+    String(params.signedAtMs),
+    token,
     params.nonce,
+    platform,
+    deviceFamily,
   ].join('|');
-
-  logger.info(
-    { payload, deviceId: params.deviceId, clientId: params.clientId, mode: params.clientMode },
-    'Built v2 signature payload'
-  );
-
-  return payload;
 }
 
 /**
@@ -544,6 +588,8 @@ export function signChallenge(
     role: string;
     scopes: string[];
     token?: string;
+    platform?: string;
+    deviceFamily?: string;
   },
 ): {
   id: string;
@@ -572,13 +618,10 @@ export function signChallenge(
     signedAtMs: signedAt,
     nonce,
     token: options.token,
+    platform: options.platform,
+    deviceFamily: options.deviceFamily,
   });
   const signature = signMessage(payload, identity);
-
-  logger.info(
-    { deviceId, signedAt, noncePrefix: nonce.substring(0, 8) },
-    'Signed connect.challenge with v2 payload'
-  );
 
   return {
     id: deviceId,

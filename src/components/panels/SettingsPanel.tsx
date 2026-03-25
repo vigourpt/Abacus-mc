@@ -79,6 +79,25 @@ export function SettingsPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Help Instructions */}
+      <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-4 text-sm">
+        <div className="flex items-start gap-3">
+          <span className="text-xl">⚙️</span>
+          <div>
+            <h3 className="font-medium text-white mb-1">Settings</h3>
+            <p className="text-gray-400 mb-2">
+              Configure Mission Control preferences. Changes are saved automatically.
+            </p>
+            <ul className="text-gray-500 text-xs space-y-1">
+              <li>• <strong>General:</strong> Theme, language, and UI preferences</li>
+              <li>• <strong>Agents:</strong> Task assignment and hiring settings</li>
+              <li>• <strong>OpenClaw:</strong> Gateway connection and sync settings</li>
+              <li>• <strong>Security:</strong> API keys and authentication</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <h2 className="text-xl font-semibold text-white">Settings</h2>
 
       <div className="space-y-6">

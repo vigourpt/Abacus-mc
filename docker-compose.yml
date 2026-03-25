@@ -15,10 +15,18 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: mission-control
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mission-control.rule=Host(`mission-control.vigourclaw.cloud`)"
+      - "traefik.http.routers.mission-control.entrypoints=websecure"
+      - "traefik.http.routers.mission-control.tls=true"
+      - "traefik.http.routers.mission-control.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mission-control.loadbalancer.server.port=3000"
     ports:
-      - "${PORT:-3000}:3000"
+      - "3000:3000"
     environment:
       - NODE_ENV=production
+      - NODE_OPTIONS=--openssl-legacy-provider
       - HOSTNAME=0.0.0.0
       - PORT=3000
       - DATABASE_PATH=.data/startup.db
@@ -28,9 +36,15 @@ services:
       - AUTH_PASS=${AUTH_PASS:-changeme}
       - API_KEY=${API_KEY:-}
       # OpenClaw Gateway
-      - OPENCLAW_GATEWAY_HOST=${OPENCLAW_GATEWAY_HOST:-}
-      - OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT:-18789}
-      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
+      - OPENCLAW_GATEWAY_HOST=openclaw-whdd-openclaw-1
+      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-ws://openclaw-whdd-openclaw-1:45397}
+      - OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT:-45397}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-MzLeAvE5uphx5w6WzwFHxJQdP1s4OalJ}
+      - OPENCLAW_CLIENT_ID=${OPENCLAW_CLIENT_ID:-openclaw-control-ui}
+      - OPENCLAW_CLIENT_MODE=${OPENCLAW_CLIENT_MODE:-webchat}
+      # OPENCLAW_PRIVATE_KEY= (inline key - leave empty to use file path instead)
+      - OPENCLAW_PRIVATE_KEY_PATH=/app/data/openclaw-private-key.pem
+      - NEXT_PUBLIC_OPENCLAW_ORIGIN_URL=${NEXT_PUBLIC_OPENCLAW_ORIGIN_URL:-}
       - OPENCLAW_CONFIG_PATH=${OPENCLAW_CONFIG_PATH:-}
       - OPENCLAW_STATE_DIR=${OPENCLAW_STATE_DIR:-}
       - OPENCLAW_MEMORY_DIR=${OPENCLAW_MEMORY_DIR:-}
@@ -47,8 +61,12 @@ services:
     volumes:
       # Persist SQLite database across container restarts
       - app-data:/app/.data
-      # Optional: mount OpenClaw config from host
-      # - ${OPENCLAW_STATE_DIR:-/dev/null}:/openclaw:ro
+      # Mount data directory for OpenClaw private key
+      - ./data:/app/data:ro
+    networks:
+      - my-ai-startup_default
+      - traefik
+      - openclaw-whdd_default
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/system/ready"]
@@ -57,7 +75,35 @@ services:
       retries: 3
       start_period: 40s
 
+  # ---- Task Worker ----
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mission-control-worker
+    command: node worker.js
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://mission-control:3000
+      - POLL_INTERVAL=5000
+    depends_on:
+      - app
+    networks:
+      - my-ai-startup_default
+      - traefik
+      - openclaw-whdd_default
+    restart: unless-stopped
+
 # ---- Named Volumes ----
 volumes:
   app-data:
     driver: local
+
+# ---- Networks ----
+networks:
+  my-ai-startup_default:
+    external: true
+  traefik:
+    external: true
+  openclaw-whdd_default:
+    external: true
