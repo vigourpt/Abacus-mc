@@ -83,7 +83,8 @@ Open [http://localhost:3000](http://localhost:3000)
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENCLAW_GATEWAY_HOST` | — | Gateway hostname or IP address |
-| `OPENCLAW_GATEWAY_PORT` | `18789` | Gateway port |
+| `OPENCLAW_GATEWAY_PORT` | `45397` | Gateway port |
+| `OPENCLAW_GATEWAY_URL` | — | Full WebSocket URL (e.g., ws://host:45397) |
 | `OPENCLAW_GATEWAY_TOKEN` | — | Gateway authentication token |
 | `NEXT_PUBLIC_OPENCLAW_ORIGIN_URL` | — | Origin URL sent in WebSocket headers (required for remote OpenClaw). Uses `NEXT_PUBLIC_` prefix for runtime availability. Falls back to `NEXT_PUBLIC_APP_URL` |
 | `NEXT_PUBLIC_APP_URL` | — | Public URL of this Mission Control instance |
@@ -189,7 +190,7 @@ Then restart Mission Control. The connection will be established automatically i
 
 1. Navigate to **Gateways** in the sidebar
 2. Click **+ Add Gateway**
-3. Enter your OpenClaw host and port (default: `18789`)
+3. Enter your OpenClaw host and port (default: `45397`)
 4. Click **Connect**
 
 #### Option C: API
@@ -198,7 +199,7 @@ Then restart Mission Control. The connection will be established automatically i
 # Connect to OpenClaw gateway
 curl -X POST http://localhost:3000/api/openclaw/connect \
   -H "Content-Type: application/json" \
-  -d '{"host": "127.0.0.1", "port": 18789}'
+  -d '{"host": "127.0.0.1", "port": 45397}'
 
 # Check connection status
 curl http://localhost:3000/api/openclaw/status
@@ -277,8 +278,24 @@ If OpenClaw runs on the same host as Docker:
 ```bash
 # In .env - use host.docker.internal to reach host network
 OPENCLAW_GATEWAY_HOST=host.docker.internal
-OPENCLAW_GATEWAY_PORT=18789
+OPENCLAW_GATEWAY_PORT=45397
 ```
+
+#### Task Worker
+
+The Docker deployment includes a **task worker** container (`mission-control-worker`) that automatically processes tasks:
+
+```bash
+# View worker logs
+docker compose logs -f worker
+
+# Restart worker
+docker compose restart worker
+```
+
+The worker polls every 5 seconds for new tasks and sends them to OpenClaw agents. Configure with:
+- `POLL_INTERVAL` - How often to check for tasks (default: 5000ms)
+- `API_URL` - Mission Control API URL (default: http://mission-control:3000)
 
 Or use `network_mode: host` in docker-compose.yml.
 

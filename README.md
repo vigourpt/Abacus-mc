@@ -127,7 +127,7 @@ docker-compose down
 
 This starts two services:
 - **Mission Control UI** (Next.js) → [http://localhost:3000](http://localhost:3000)
-- **Orchestration Layer** (Python) → [http://localhost:9090](http://localhost:9090) (metrics API)
+- **Task Worker** (Node.js) → Automatically processes tasks every 5 seconds
 
 Data is persisted in Docker named volumes. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for advanced configuration.
 

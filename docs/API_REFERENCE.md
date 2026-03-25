@@ -284,6 +284,36 @@ GET /api/tasks/queue?agent=:agentId
 
 **Response**: Single task object or `null`
 
+### Process Task
+
+Send a task to an OpenClaw agent for processing.
+
+```http
+POST /api/tasks/process
+```
+
+**Request Body**:
+```json
+{
+  "taskId": "optional-specific-task-id",
+  "agentSlug": "optional-agent-slug"
+}
+```
+
+If no `taskId` is provided, the next available task with status `todo` is selected.
+
+**Response**:
+```json
+{
+  "success": true,
+  "taskId": "abc123",
+  "title": "Task Title",
+  "agent": "task-planner",
+  "status": "in_progress",
+  "message": "Task sent to agent task-planner"
+}
+```
+
 ---
 
 ## Analytics API
@@ -591,6 +621,55 @@ POST /api/gateways
   "url": "ws://gateway.example.com:18789",
   "token": "gateway-token"
 }
+```
+
+---
+
+## Webhooks API
+
+### List Webhooks
+
+```http
+GET /api/webhooks
+```
+
+**Response**:
+```json
+[
+  {
+    "id": "abc123",
+    "name": "My Webhook",
+    "url": "https://example.com/webhook",
+    "method": "POST",
+    "events": ["task.completed", "agent.error"],
+    "status": "active",
+    "lastTriggered": null,
+    "successRate": 100,
+    "totalCalls": 0
+  }
+]
+```
+
+### Create Webhook
+
+```http
+POST /api/webhooks
+```
+
+**Request Body**:
+```json
+{
+  "name": "My Webhook",
+  "url": "https://example.com/webhook",
+  "method": "POST",
+  "events": ["task.completed"]
+}
+```
+
+### Delete Webhook
+
+```http
+DELETE /api/webhooks?id=webhook-id
 ```
 
 ---
