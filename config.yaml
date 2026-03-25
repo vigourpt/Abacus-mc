@@ -75,39 +75,3 @@ health:
   
   # Alert on failed health checks
   alert_on_failure: true
-
-# Knowledge System
-knowledge:
-  # Enable knowledge capture from task outputs
-  enabled: true
-  
-  # Minimum confidence threshold for knowledge detection (0-1)
-  min_confidence: 0.3
-  
-  # Maximum knowledge entries to inject per task
-  max_context_entries: 5
-  
-  # Directory for markdown knowledge files
-  knowledge_dir: knowledge
-
-# Embeddings Configuration
-embeddings:
-  # Provider: openai, tfidf (auto-selects based on OPENAI_API_KEY)
-  provider: auto
-  
-  # OpenAI model (if using OpenAI)
-  openai_model: text-embedding-3-small
-  
-  # Dimension for TF-IDF fallback embeddings
-  tfidf_dimension: 256
-
-# Agent Reputation
-reputation:
-  # Enable reputation-based agent selection
-  enabled: true
-  
-  # Weight given to reputation vs capabilities (0-1)
-  reputation_weight: 0.3
-  
-  # Minimum tasks completed before reputation affects ranking
-  min_tasks_threshold: 3
