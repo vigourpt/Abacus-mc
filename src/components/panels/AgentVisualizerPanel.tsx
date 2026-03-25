@@ -571,15 +571,26 @@ export function AgentVisualizerPanel() {
   const [viewMode, setViewMode] = useState<'office' | 'grid' | 'flow'>('office');
   const [showLabels, setShowLabels] = useState(true);
   const [autoAnimate, setAutoAnimate] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const animationRef = useRef<number | null>(null);
   const frameCountRef = useRef(0);
 
+  // Filter agents based on status filter
+  const filteredAgents = agents.filter(agent => {
+    if (statusFilter === 'all') return true;
+    // Active = has in-progress task assigned to them
+    const hasActiveTask = tasks.some(t => t.assignedTo === agent.id && t.status === 'in_progress');
+    if (statusFilter === 'active') return hasActiveTask;
+    if (statusFilter === 'inactive') return !hasActiveTask;
+    return true;
+  });
+
   // Convert real agents to pixel agents with positions
   useEffect(() => {
-    const newPixelAgents: PixelAgent[] = agents.map((agent, index) => {
+    const newPixelAgents: PixelAgent[] = filteredAgents.map((agent, index) => {
       const divisionIndex = FLOORS.findIndex(f => f.divisions.includes(agent.division));
       const floor = divisionIndex >= 0 ? divisionIndex : 4;
-      const floorAgents = agents.filter(a => 
+      const floorAgents = filteredAgents.filter(a => 
         FLOORS[floor].divisions.includes(a.division)
       );
       const posInFloor = floorAgents.findIndex(a => a.id === agent.id);
@@ -594,9 +605,13 @@ export function AgentVisualizerPanel() {
       const currentTask = agentTasks[0]?.title;
       
       let status: AgentState = 'idle';
-      if (agent.status === 'sleeping') status = 'sleeping';
-      else if (agent.status === 'active' || agent.status === 'busy') {
-        status = agentTasks.length > 0 ? 'working' : 'thinking';
+      // Show as working if they have an in-progress task, regardless of agent status
+      if (agentTasks.length > 0) {
+        status = 'working';
+      } else if (agent.status === 'active' || agent.status === 'busy') {
+        status = 'thinking';
+      } else if (agent.status === 'sleeping') {
+        status = 'sleeping';
       }
       
       return {
@@ -618,7 +633,7 @@ export function AgentVisualizerPanel() {
       };
     });
     setPixelAgents(newPixelAgents);
-  }, [agents, tasks]);
+  }, [filteredAgents, tasks, statusFilter]);
 
   // Animation loop
   useEffect(() => {
@@ -934,7 +949,7 @@ export function AgentVisualizerPanel() {
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span>🎮</span> Agent World
             <span className="ml-2 px-2.5 py-0.5 bg-cyan-600/20 text-cyan-400 text-sm font-semibold rounded-full">
-              {agents.length} agents
+              {filteredAgents.length} agents
             </span>
           </h2>
           
@@ -952,6 +967,24 @@ export function AgentVisualizerPanel() {
                 )}
               >
                 {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Status Filter */}
+          <div className="flex bg-gray-800 rounded-lg p-1">
+            {(['all', 'active', 'inactive'] as const).map(filter => (
+              <button
+                key={filter}
+                onClick={() => setStatusFilter(filter)}
+                className={cn(
+                  'px-3 py-1 rounded text-xs font-medium transition-colors capitalize',
+                  statusFilter === filter
+                    ? 'bg-green-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                )}
+              >
+                {filter}
               </button>
             ))}
           </div>
@@ -1009,19 +1042,21 @@ export function AgentVisualizerPanel() {
 
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Canvas Area */}
-        <div 
-          ref={containerRef}
-          className="flex-1 relative overflow-hidden cursor-crosshair"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
-          onContextMenu={e => e.preventDefault()}
-        >
-          <canvas
-            ref={canvasRef}
+        {/* Different views based on viewMode */}
+        {viewMode === 'office' && (
+          /* Canvas Area - Office View */
+          <div 
+            ref={containerRef}
+            className="flex-1 relative overflow-hidden cursor-crosshair"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onWheel={handleWheel}
+            onContextMenu={e => e.preventDefault()}
+          >
+            <canvas
+              ref={canvasRef}
             className="absolute inset-0"
             style={{ background: 'linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 50%, #0a0a1a 100%)' }}
           />
@@ -1042,6 +1077,86 @@ export function AgentVisualizerPanel() {
             🖱️ Scroll to zoom • Right-click drag to pan • Click agent to select
           </div>
         </div>
+        )}
+
+        {/* Grid View */}
+        {viewMode === 'grid' && (
+          <div className="flex-1 overflow-auto p-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              {pixelAgents.map(agent => (
+                <div
+                  key={agent.id}
+                  className={cn(
+                    'bg-gray-800 rounded-lg p-4 text-center cursor-pointer hover:ring-2 hover:ring-cyan-500 transition-all',
+                    agent.status === 'working' && 'ring-2 ring-green-500'
+                  )}
+                  onClick={() => setSelectedAgent(agent)}
+                >
+                  <div className="text-4xl mb-2">{agent.emoji}</div>
+                  <div className="text-white text-sm font-medium truncate">{agent.name}</div>
+                  <div className={cn(
+                    'text-xs mt-1 capitalize',
+                    agent.status === 'working' && 'text-green-400',
+                    agent.status === 'thinking' && 'text-yellow-400',
+                    agent.status === 'idle' && 'text-gray-500',
+                    agent.status === 'sleeping' && 'text-blue-400'
+                  )}>
+                    {agent.status}
+                  </div>
+                  {agent.currentTask && (
+                    <div className="text-xs text-gray-400 mt-2 truncate">
+                      {agent.currentTask}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Flow View - Activity Timeline */}
+        {viewMode === 'flow' && (
+          <div className="flex-1 overflow-auto p-4">
+            <div className="space-y-4">
+              {['working', 'thinking', 'idle', 'sleeping'].map(status => {
+                const statusAgents = pixelAgents.filter(a => a.status === status);
+                if (statusAgents.length === 0) return null;
+                return (
+                  <div key={status}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={cn(
+                        'w-3 h-3 rounded-full',
+                        status === 'working' && 'bg-green-400',
+                        status === 'thinking' && 'bg-yellow-400',
+                        status === 'idle' && 'bg-gray-500',
+                        status === 'sleeping' && 'bg-blue-400'
+                      )} />
+                      <span className="text-white font-medium capitalize">{status}</span>
+                      <span className="text-gray-500 text-sm">({statusAgents.length})</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {statusAgents.map(agent => (
+                        <div
+                          key={agent.id}
+                          className="flex items-center gap-2 bg-gray-800 rounded-full px-3 py-1 cursor-pointer hover:bg-gray-700"
+                          onClick={() => setSelectedAgent(agent)}
+                        >
+                          <span className="text-lg">{agent.emoji}</span>
+                          <span className="text-white text-sm">{agent.name}</span>
+                          {agent.currentTask && (
+                            <span className="text-gray-400 text-xs truncate max-w-[100px]">
+                              {agent.currentTask}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         
         {/* Side Panel */}
         <div className="w-80 bg-gray-900 border-l border-gray-800 overflow-y-auto">
