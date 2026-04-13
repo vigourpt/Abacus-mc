@@ -2,10 +2,14 @@
 # Docker Compose - Autonomous AI Startup
 # ============================================
 # Quick start:
-#   docker compose up -d          # Start (builds if needed)
-#   docker compose logs -f        # Follow logs
-#   docker compose down           # Stop
+#   cp .env.example .env  # Fill in your values
+#   docker compose up -d   # Start (builds if needed)
+#   docker compose logs -f # Follow logs
+#   docker compose down    # Stop
 #   docker compose up -d --build  # Rebuild and start
+# ============================================
+# For production with Traefik, create docker-compose.override.yml
+# with your domain-specific values (gitignored)
 # ============================================
 
 services:
@@ -17,13 +21,15 @@ services:
     container_name: mission-control
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mission-control.rule=Host(`mission-control.vigourclaw.cloud`)"
+      - "traefik.http.routers.mission-control.rule=Host(${MC_DOMAIN:-mission-control.local})"
       - "traefik.http.routers.mission-control.entrypoints=websecure"
       - "traefik.http.routers.mission-control.tls=true"
       - "traefik.http.routers.mission-control.tls.certresolver=letsencrypt"
       - "traefik.http.services.mission-control.loadbalancer.server.port=3000"
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - NODE_OPTIONS=--openssl-legacy-provider
@@ -35,14 +41,13 @@ services:
       - AUTH_USER=${AUTH_USER:-admin}
       - AUTH_PASS=${AUTH_PASS:-changeme}
       - API_KEY=${API_KEY:-}
-      # OpenClaw Gateway
-      - OPENCLAW_GATEWAY_HOST=openclaw-whdd-openclaw-1
-      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-ws://openclaw-whdd-openclaw-1:45397}
+      # OpenClaw Gateway (fill in .env)
+      - OPENCLAW_GATEWAY_HOST=${OPENCLAW_GATEWAY_HOST:-}
+      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-}
       - OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT:-45397}
-      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-MzLeAvE5uphx5w6WzwFHxJQdP1s4OalJ}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
       - OPENCLAW_CLIENT_ID=${OPENCLAW_CLIENT_ID:-openclaw-control-ui}
       - OPENCLAW_CLIENT_MODE=${OPENCLAW_CLIENT_MODE:-webchat}
-      # OPENCLAW_PRIVATE_KEY= (inline key - leave empty to use file path instead)
       - OPENCLAW_PRIVATE_KEY_PATH=/app/data/openclaw-private-key.pem
       - NEXT_PUBLIC_OPENCLAW_ORIGIN_URL=${NEXT_PUBLIC_OPENCLAW_ORIGIN_URL:-}
       - OPENCLAW_CONFIG_PATH=${OPENCLAW_CONFIG_PATH:-}

@@ -58,3 +58,6 @@ __pycache__/
 
 # Mission Control runtime
 runs/
+
+# Local overrides (site-specific, DO NOT COMMIT)
+docker-compose.override.yml
