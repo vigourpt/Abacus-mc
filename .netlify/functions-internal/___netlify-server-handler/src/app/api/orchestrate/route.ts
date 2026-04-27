@@ -63,10 +63,32 @@ export async function POST(request: NextRequest) {
       error?: string;
     }> = [];
 
-    // Connect to gateway
+    // Connect to gateway with timeout
     const client = getGatewayClient();
-    if (!client.connected) {
-      await client.connect();
+    
+    // For serverless environments, gateway may not be reachable
+    // Dispatch tasks and return status without waiting for completion
+    const gatewayReachable = await Promise.race([
+      client.connected ? Promise.resolve(true) : client.connect().then(() => true),
+      new Promise(r => setTimeout(() => r(false), 5000)),
+    ]).catch(() => false);
+
+    if (!gatewayReachable) {
+      // Gateway not reachable — queue tasks locally and return
+      const queuedTasks = body.tasks.map((t, i) => {
+        const taskId = uuidv4();
+        createTask(taskId, t.agentSlug || 'orchestrator', t.task);
+        return { id: t.id || `task-${i}`, taskId, status: 'queued', error: 'Gateway not reachable — queued for later' };
+      });
+
+      return NextResponse.json({
+        workflowId,
+        masterTaskId,
+        mode,
+        taskCount: body.tasks.length,
+        results: queuedTasks,
+        note: 'Gateway not reachable — tasks queued locally',
+      });
     }
 
     if (mode === 'parallel') {
