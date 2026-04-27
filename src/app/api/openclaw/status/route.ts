@@ -8,28 +8,45 @@ export async function GET() {
   try {
     const client = getGatewayClient();
     
-    // Try to get gateway status by making a simple request
-    // If the gateway is reachable, it will be connected
+    // Try to connect first if not connected
+    if (!client.connected) {
+      try {
+        await client.connect();
+      } catch (connectError) {
+        console.error('[Status] Connection failed:', connectError);
+        return NextResponse.json({
+          gateway: {
+            connected: false,
+            error: 'Failed to connect to gateway'
+          }
+        });
+      }
+    }
+
+    // Try to ping the gateway
     try {
       await client.request('ping', {}, 5000);
       return NextResponse.json({
         gateway: {
-          connected: true
+          connected: true,
+          url: process.env.OPENCLAW_GATEWAY_URL || 'ws://localhost:45397'
         }
       });
-    } catch {
-      // Gateway not reachable or not connected
+    } catch (pingError) {
+      console.error('[Status] Ping failed:', pingError);
       return NextResponse.json({
         gateway: {
-          connected: false
+          connected: client.connected,
+          error: pingError instanceof Error ? pingError.message : 'Ping failed'
         }
       });
     }
   } catch (error) {
-    console.error('Failed to get gateway status:', error);
+    console.error('[Status] Unexpected error:', error);
     return NextResponse.json({
       gateway: {
-        connected: false
+        connected: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     });
   }

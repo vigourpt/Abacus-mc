@@ -92,16 +92,24 @@ async function generateAssistantResponse(
       fullPrompt = `## Agent Persona\n${agentContent}\n\n## Conversation History\n${historyContext}\n\n## Current Message\nuser: ${latestUserMessage}\n\nassistant:`;
     }
 
-    // Execute via gateway
-    const result = await client.agentInvoke(
+    // Execute via gateway — invoke returns immediately with session/task IDs
+    // The actual result comes back via WebSocket events or can be awaited
+    const invokeResult = await client.agentInvoke(
       latestUserMessage,
       undefined,
       fullPrompt
     );
 
-    // Store assistant response
+    // For now, store the invoke acknowledgment as the assistant message
+    // In a full implementation, you'd subscribe to task.complete events
+    // and store the actual result when it arrives
     const assistantMsgId = uuidv4();
-    createMessage(assistantMsgId, conversationId, 'assistant', result.result);
+    createMessage(
+      assistantMsgId,
+      conversationId,
+      'assistant',
+      `[Task dispatched to gateway — session: ${invokeResult.sessionId}, taskId: ${invokeResult.taskId}]`
+    );
   } catch (error) {
     console.error('Assistant response error:', error);
     const errorMsgId = uuidv4();
