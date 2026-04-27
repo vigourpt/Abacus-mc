@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/activity": {},
+    "/api/agents": {},
+    "/api/agents/execute": {},
+    "/api/chat/conversations": {},
+    "/api/chat/conversations/[id]": {},
+    "/api/chat/messages": {},
+    "/api/gateway/invoke": {},
+    "/api/gateway/status": {},
+    "/api/openclaw/channels": {},
+    "/api/openclaw/channels/send": {},
+    "/api/openclaw/status": {},
+    "/api/orchestrate": {},
+    "/api/tasks": {},
+    "/api/tasks/[id]": {}
+  }
+}

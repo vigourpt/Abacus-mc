@@ -1,0 +1,82 @@
+module.exports=[93695,(e,t,a)=>{t.exports=e.x("next/dist/shared/lib/no-fallback-error.external.js",()=>require("next/dist/shared/lib/no-fallback-error.external.js"))},18622,(e,t,a)=>{t.exports=e.x("next/dist/compiled/next-server/app-page-turbo.runtime.prod.js",()=>require("next/dist/compiled/next-server/app-page-turbo.runtime.prod.js"))},56704,(e,t,a)=>{t.exports=e.x("next/dist/server/app-render/work-async-storage.external.js",()=>require("next/dist/server/app-render/work-async-storage.external.js"))},32319,(e,t,a)=>{t.exports=e.x("next/dist/server/app-render/work-unit-async-storage.external.js",()=>require("next/dist/server/app-render/work-unit-async-storage.external.js"))},24725,(e,t,a)=>{t.exports=e.x("next/dist/server/app-render/after-task-async-storage.external.js",()=>require("next/dist/server/app-render/after-task-async-storage.external.js"))},70406,(e,t,a)=>{t.exports=e.x("next/dist/compiled/@opentelemetry/api",()=>require("next/dist/compiled/@opentelemetry/api"))},14747,(e,t,a)=>{t.exports=e.x("path",()=>require("path"))},85148,(e,t,a)=>{t.exports=e.x("better-sqlite3-90e2652d1716b047",()=>require("better-sqlite3-90e2652d1716b047"))},22734,(e,t,a)=>{t.exports=e.x("fs",()=>require("fs"))},43793,e=>{"use strict";var t=e.i(85148),a=e.i(14747);let r=process.env.DATABASE_PATH||a.default.join(process.cwd(),"data","mission-control.db"),n=null;function s(){if(!n){var s;let o=e.r(22734),i=a.default.dirname(r);o.existsSync(i)||o.mkdirSync(i,{recursive:!0}),(n=new t.default(r)).pragma("journal_mode = WAL"),(s=n).exec(`
+    CREATE TABLE IF NOT EXISTS agent_definitions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `),s.exec(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      agent_slug TEXT NOT NULL,
+      task TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      result TEXT,
+      error TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY (agent_slug) REFERENCES agent_definitions(slug)
+    )
+  `),s.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)
+  `),s.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_agent_slug ON tasks(agent_slug)
+  `),s.exec(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL,
+      agent_slug TEXT,
+      task_id TEXT,
+      message TEXT NOT NULL,
+      metadata TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `),s.exec(`
+    CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at DESC)
+  `),s.exec(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id TEXT PRIMARY KEY,
+      agent_slug TEXT NOT NULL,
+      title TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (agent_slug) REFERENCES agent_definitions(slug)
+    )
+  `),s.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    )
+  `),s.exec(`
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)
+  `)}return n}function o(e){return s().prepare("SELECT * FROM tasks WHERE id = ?").get(e)}function i(e){return s().prepare("SELECT * FROM conversations WHERE id = ?").get(e)}e.s(["createConversation",0,function(e,t,a){return s().prepare(`
+    INSERT INTO conversations (id, agent_slug, title)
+    VALUES (?, ?, ?)
+  `).run(e,t,a??null),i(e)},"createMessage",0,function(e,t,a,r){var n;return s().prepare(`
+    INSERT INTO messages (id, conversation_id, role, content)
+    VALUES (?, ?, ?, ?)
+  `).run(e,t,a,r),s().prepare('UPDATE conversations SET updated_at = datetime("now") WHERE id = ?').run(t),n=e,s().prepare("SELECT * FROM messages WHERE id = ?").get(n)},"createTask",0,function(e,t,a){return s().prepare(`
+    INSERT INTO tasks (id, agent_slug, task, status)
+    VALUES (?, ?, ?, 'pending')
+  `).run(e,t,a),o(e)},"deleteConversation",0,function(e){let t=s();t.prepare("DELETE FROM messages WHERE conversation_id = ?").run(e),t.prepare("DELETE FROM conversations WHERE id = ?").run(e)},"getAgentBySlug",0,function(e){return s().prepare("SELECT * FROM agent_definitions WHERE slug = ?").get(e)},"getAllAgents",0,function(){return s().prepare("SELECT * FROM agent_definitions ORDER BY name").all()},"getAllConversations",0,function(){return s().prepare("SELECT * FROM conversations ORDER BY updated_at DESC").all()},"getAllTasks",0,function(){return s().prepare("SELECT * FROM tasks ORDER BY created_at DESC").all()},"getConversationById",0,i,"getMessagesByConversation",0,function(e){return s().prepare("SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC").all(e)},"getRecentActivity",0,function(e=50){return s().prepare("SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?").all(e)},"getTaskById",0,o,"logActivity",0,function(e,t,a,r,n){s().prepare(`
+    INSERT INTO activity_log (event_type, agent_slug, task_id, message, metadata)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(e,a??null,r??null,t,n?JSON.stringify(n):null)},"updateTaskStatus",0,function(e,t,a,r){let n=s();"completed"===t||"failed"===t?n.prepare(`
+      UPDATE tasks 
+      SET status = ?, result = ?, error = ?, updated_at = datetime('now'), completed_at = datetime('now')
+      WHERE id = ?
+    `).run(t,a??null,r??null,e):n.prepare(`
+      UPDATE tasks 
+      SET status = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(t,e)}])},66680,(e,t,a)=>{t.exports=e.x("node:crypto",()=>require("node:crypto"))},89960,e=>{"use strict";var t=e.i(66680);let a={randomUUID:t.randomUUID},r=new Uint8Array(256),n=r.length,s=[];for(let e=0;e<256;++e)s.push((e+256).toString(16).slice(1));e.s(["v4",0,function(e,o,i){if(a.randomUUID&&!o&&!e)return a.randomUUID();var l=e,d=i;let u=(l=l||{}).random??l.rng?.()??(n>r.length-16&&((0,t.randomFillSync)(r),n=0),r.slice(n,n+=16));if(u.length<16)throw Error("Random bytes length must be >= 16");if(u[6]=15&u[6]|64,u[8]=63&u[8]|128,o){if((d=d||0)<0||d+16>o.length)throw RangeError(`UUID byte range ${d}:${d+15} is out of buffer bounds`);for(let e=0;e<16;++e)o[d+e]=u[e];return o}return function(e,t=0){return(s[e[t+0]]+s[e[t+1]]+s[e[t+2]]+s[e[t+3]]+"-"+s[e[t+4]]+s[e[t+5]]+"-"+s[e[t+6]]+s[e[t+7]]+"-"+s[e[t+8]]+s[e[t+9]]+"-"+s[e[t+10]]+s[e[t+11]]+s[e[t+12]]+s[e[t+13]]+s[e[t+14]]+s[e[t+15]]).toLowerCase()}(u)}],89960)},20657,e=>{"use strict";var t=e.i(47909),a=e.i(74017),r=e.i(96250),n=e.i(59756),s=e.i(61916),o=e.i(74677),i=e.i(69741),l=e.i(16795),d=e.i(87718),u=e.i(95169),c=e.i(47587),p=e.i(66012),E=e.i(70101),T=e.i(26937),g=e.i(10372),R=e.i(93695);e.i(52474);var f=e.i(220),m=e.i(89171),v=e.i(89960),h=e.i(43793),k=e.i(22838);async function w(e){try{let t=await e.json();if(!t.tasks||!Array.isArray(t.tasks)||0===t.tasks.length)return m.NextResponse.json({error:"Missing or empty tasks array"},{status:400});let a=(0,v.v4)(),r=t.mode||"dag";(0,h.logActivity)("workflow.started",`Workflow ${a} started (mode: ${r}, ${t.tasks.length} tasks)`,void 0,a);let n=(0,v.v4)();(0,h.createTask)(n,"orchestrator",`Workflow: ${t.workflowName||"unnamed"}`);let s=[],o=(0,k.getGatewayClient)();if(o.connected||await o.connect(),"parallel"===r){let e=await x(o,t.tasks,a);s.push(...e)}else if("sequence"===r){let e=await S(o,t.tasks,a);s.push(...e)}else{let e=await A(o,t.tasks,a);s.push(...e)}return(0,h.updateTaskStatus)(n,"completed",JSON.stringify({results:s})),(0,h.logActivity)("workflow.completed",`Workflow ${a} completed (${s.length} tasks)`,void 0,a),m.NextResponse.json({workflowId:a,masterTaskId:n,mode:r,taskCount:t.tasks.length,results:s})}catch(e){return console.error("Orchestration error:",e),m.NextResponse.json({error:e instanceof Error?e.message:"Internal server error"},{status:500})}}async function N(e){let t=e.nextUrl.searchParams.get("workflowId");return t?m.NextResponse.json({workflowId:t,status:"processed",message:"Workflow status endpoint — integrate with workflow tracking table for full status"}):m.NextResponse.json({error:"Missing workflowId"},{status:400})}async function x(e,t,a){let r=t.map(e=>({task:e.task,agentId:e.agentSlug,systemPrompt:e.systemPrompt}));return(await e.invokeParallel(r)).map((e,a)=>({id:t[a].id||`task-${a}`,taskId:e.taskId,status:"dispatched"}))}async function S(e,t,a){let r=[];for(let n=0;n<t.length;n++){let s=t[n],o=(0,v.v4)();(0,h.createTask)(o,s.agentSlug||"orchestrator",s.task);try{let t=await e.agentInvoke(s.task,s.agentSlug,s.systemPrompt);r.push({id:s.id||`task-${n}`,taskId:t.taskId,status:"completed"}),(0,h.updateTaskStatus)(o,"completed")}catch(t){let e=t instanceof Error?t.message:String(t);r.push({id:s.id||`task-${n}`,taskId:o,status:"failed",error:e}),(0,h.updateTaskStatus)(o,"failed",void 0,e),(0,h.logActivity)("workflow.task_failed",`Task ${s.id||n} failed: ${e}`,void 0,a)}}return r}async function A(e,t,a){let r=[],n=new Map,s=new Map;t.forEach((e,t)=>{let a=e.id||`task-${t}`;n.set(a,e)});let o=new Set,i=new Set;for(t.forEach((e,t)=>{let a=e.id||`task-${t}`;o.add(a)});o.size>0;){let t=!1;for(let a of o){let l=n.get(a);if((l.dependsOn||[]).every(e=>i.has(e)&&s.get(e)?.status==="completed")){let n=await y(e,l,a);s.set(a,n),r.push(n),o.delete(a),"completed"===n.status&&i.add(a),t=!0;break}}if(!t&&o.size>0){let e=Array.from(o).map(e=>{let t=(n.get(e).dependsOn||[]).filter(e=>!i.has(e));return`${e} (blocked by: ${t.join(", ")})`});(0,h.logActivity)("workflow.deadlock",`DAG deadlock detected: ${e.join("; ")}`,void 0,a);break}}return r}async function y(e,t,a){let r=(0,v.v4)();(0,h.createTask)(r,t.agentSlug||"orchestrator",t.task);try{let n=await e.agentInvoke(t.task,t.agentSlug,t.systemPrompt);return(0,h.updateTaskStatus)(r,"completed"),{id:a,taskId:n.taskId,status:"completed"}}catch(t){let e=t instanceof Error?t.message:String(t);return(0,h.updateTaskStatus)(r,"failed",void 0,e),{id:a,taskId:r,status:"failed",error:e}}}e.s(["GET",0,N,"POST",0,w,"dynamic",0,"force-dynamic","runtime",0,"nodejs"],7819);var I=e.i(7819);let _=new t.AppRouteRouteModule({definition:{kind:a.RouteKind.APP_ROUTE,page:"/api/orchestrate/route",pathname:"/api/orchestrate",filename:"route",bundlePath:""},distDir:".next",relativeProjectDir:"",resolvedPagePath:"[project]/src/app/api/orchestrate/route.ts",nextConfigOutput:"",userland:I}),{workAsyncStorage:O,workUnitAsyncStorage:C,serverHooks:L}=_;async function U(e,t,r){r.requestMeta&&(0,n.setRequestMeta)(e,r.requestMeta),_.isDev&&(0,n.addRequestMeta)(e,"devRequestTimingInternalsEnd",process.hrtime.bigint());let m="/api/orchestrate/route";m=m.replace(/\/index$/,"")||"/";let v=await _.prepare(e,t,{srcPage:m,multiZoneDraftMode:!1});if(!v)return t.statusCode=400,t.end("Bad Request"),null==r.waitUntil||r.waitUntil.call(r,Promise.resolve()),null;let{buildId:h,params:k,nextConfig:w,parsedUrl:N,isDraftMode:x,prerenderManifest:S,routerServerContext:A,isOnDemandRevalidate:y,revalidateOnlyGenerated:I,resolvedPathname:O,clientReferenceManifest:C,serverActionsManifest:L}=v,U=(0,i.normalizeAppPath)(m),D=!!(S.dynamicRoutes[U]||S.routes[O]),X=async()=>((null==A?void 0:A.render404)?await A.render404(e,t,N,!1):t.end("This page could not be found"),null);if(D&&!x){let e=!!S.routes[O],t=S.dynamicRoutes[U];if(t&&!1===t.fallback&&!e){if(w.adapterPath)return await X();throw new R.NoFallbackError}}let b=null;!D||_.isDev||x||(b="/index"===(b=O)?"/":b);let F=!0===_.isDev||!D,M=D&&!F;L&&C&&(0,o.setManifestsSingleton)({page:m,clientReferenceManifest:C,serverActionsManifest:L});let P=e.method||"GET",q=(0,s.getTracer)(),H=q.getActiveScopeSpan(),j=!!(null==A?void 0:A.isWrappedByNextServer),$=!!(0,n.getRequestMeta)(e,"minimalMode"),B=(0,n.getRequestMeta)(e,"incrementalCache")||await _.getIncrementalCache(e,w,S,$);null==B||B.resetRequestCache(),globalThis.__incrementalCache=B;let W={params:k,previewProps:S.preview,renderOpts:{experimental:{authInterrupts:!!w.experimental.authInterrupts},cacheComponents:!!w.cacheComponents,supportsDynamicResponse:F,incrementalCache:B,cacheLifeProfiles:w.cacheLife,waitUntil:r.waitUntil,onClose:e=>{t.on("close",e)},onAfterTaskError:void 0,onInstrumentationRequestError:(t,a,r,n)=>_.onRequestError(e,t,r,n,A)},sharedContext:{buildId:h}},Y=new l.NodeNextRequest(e),K=new l.NodeNextResponse(t),G=d.NextRequestAdapter.fromNodeNextRequest(Y,(0,d.signalFromNodeResponse)(t));try{let n,o=async e=>_.handle(G,W).finally(()=>{if(!e)return;e.setAttributes({"http.status_code":t.statusCode,"next.rsc":!1});let a=q.getRootSpanAttributes();if(!a)return;if(a.get("next.span_type")!==u.BaseServerSpan.handleRequest)return void console.warn(`Unexpected root span type '${a.get("next.span_type")}'. Please report this Next.js issue https://github.com/vercel/next.js`);let r=a.get("next.route");if(r){let t=`${P} ${r}`;e.setAttributes({"next.route":r,"http.route":r,"next.span_name":t}),e.updateName(t),n&&n!==e&&(n.setAttribute("http.route",r),n.updateName(t))}else e.updateName(`${P} ${m}`)}),i=async n=>{var s,i;let l=async({previousCacheEntry:a})=>{try{if(!$&&y&&I&&!a)return t.statusCode=404,t.setHeader("x-nextjs-cache","REVALIDATED"),t.end("This page could not be found"),null;let s=await o(n);e.fetchMetrics=W.renderOpts.fetchMetrics;let i=W.renderOpts.pendingWaitUntil;i&&r.waitUntil&&(r.waitUntil(i),i=void 0);let l=W.renderOpts.collectedTags;if(!D)return await (0,p.sendResponse)(Y,K,s,W.renderOpts.pendingWaitUntil),null;{let e=await s.blob(),t=(0,E.toNodeOutgoingHttpHeaders)(s.headers);l&&(t[g.NEXT_CACHE_TAGS_HEADER]=l),!t["content-type"]&&e.type&&(t["content-type"]=e.type);let a=void 0!==W.renderOpts.collectedRevalidate&&!(W.renderOpts.collectedRevalidate>=g.INFINITE_CACHE)&&W.renderOpts.collectedRevalidate,r=void 0===W.renderOpts.collectedExpire||W.renderOpts.collectedExpire>=g.INFINITE_CACHE?void 0:W.renderOpts.collectedExpire;return{value:{kind:f.CachedRouteKind.APP_ROUTE,status:s.status,body:Buffer.from(await e.arrayBuffer()),headers:t},cacheControl:{revalidate:a,expire:r}}}}catch(t){throw(null==a?void 0:a.isStale)&&await _.onRequestError(e,t,{routerKind:"App Router",routePath:m,routeType:"route",revalidateReason:(0,c.getRevalidateReason)({isStaticGeneration:M,isOnDemandRevalidate:y})},!1,A),t}},d=await _.handleResponse({req:e,nextConfig:w,cacheKey:b,routeKind:a.RouteKind.APP_ROUTE,isFallback:!1,prerenderManifest:S,isRoutePPREnabled:!1,isOnDemandRevalidate:y,revalidateOnlyGenerated:I,responseGenerator:l,waitUntil:r.waitUntil,isMinimalMode:$});if(!D)return null;if((null==d||null==(s=d.value)?void 0:s.kind)!==f.CachedRouteKind.APP_ROUTE)throw Object.defineProperty(Error(`Invariant: app-route received invalid cache entry ${null==d||null==(i=d.value)?void 0:i.kind}`),"__NEXT_ERROR_CODE",{value:"E701",enumerable:!1,configurable:!0});$||t.setHeader("x-nextjs-cache",y?"REVALIDATED":d.isMiss?"MISS":d.isStale?"STALE":"HIT"),x&&t.setHeader("Cache-Control","private, no-cache, no-store, max-age=0, must-revalidate");let u=(0,E.fromNodeOutgoingHttpHeaders)(d.value.headers);return $&&D||u.delete(g.NEXT_CACHE_TAGS_HEADER),!d.cacheControl||t.getHeader("Cache-Control")||u.get("Cache-Control")||u.set("Cache-Control",(0,T.getCacheControlHeader)(d.cacheControl)),await (0,p.sendResponse)(Y,K,new Response(d.value.body,{headers:u,status:d.value.status||200})),null};j&&H?await i(H):(n=q.getActiveScopeSpan(),await q.withPropagatedContext(e.headers,()=>q.trace(u.BaseServerSpan.handleRequest,{spanName:`${P} ${m}`,kind:s.SpanKind.SERVER,attributes:{"http.method":P,"http.target":e.url}},i),void 0,!j))}catch(t){if(t instanceof R.NoFallbackError||await _.onRequestError(e,t,{routerKind:"App Router",routePath:U,routeType:"route",revalidateReason:(0,c.getRevalidateReason)({isStaticGeneration:M,isOnDemandRevalidate:y})},!1,A),D)throw t;return await (0,p.sendResponse)(Y,K,new Response(null,{status:500})),null}}e.s(["handler",0,U,"patchFetch",0,function(){return(0,r.patchFetch)({workAsyncStorage:O,workUnitAsyncStorage:C})},"routeModule",0,_,"serverHooks",0,L,"workAsyncStorage",0,O,"workUnitAsyncStorage",0,C],20657)}];
+
+//# sourceMappingURL=%5Broot-of-the-server%5D__0zv77o~._.js.map
